@@ -15,13 +15,13 @@
 
 package io.debezium.server.s3.batchwriter;
 
-import io.debezium.engine.ChangeEvent;
-
 import java.io.IOException;
+
+import io.debezium.engine.ChangeEvent;
 
 public interface BatchRecordWriter {
 
-    void append(String objectKey, ChangeEvent<Object, Object> record) throws IOException;
+    void append(String destination, ChangeEvent<Object, Object> record) throws IOException;
 
     void uploadBatch() throws IOException;
 }

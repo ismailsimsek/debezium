@@ -5,6 +5,25 @@
  */
 package io.debezium.server.s3;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.enterprise.context.Dependent;
+import javax.enterprise.inject.Instance;
+import javax.inject.Inject;
+
+import org.apache.commons.lang3.StringUtils;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.debezium.DebeziumException;
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
@@ -13,29 +32,13 @@ import io.debezium.engine.format.Json;
 import io.debezium.server.CustomConsumerBuilder;
 import io.debezium.server.s3.objectkeymapper.DefaultObjectKeyMapper;
 import io.debezium.server.s3.objectkeymapper.ObjectKeyMapper;
-import org.apache.commons.lang3.StringUtils;
-import org.eclipse.microprofile.config.Config;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.enterprise.context.Dependent;
-import javax.enterprise.inject.Instance;
-import javax.inject.Inject;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -62,7 +65,7 @@ public abstract class AbstractS3ChangeConsumer implements DebeziumEngine.ChangeC
     Instance<ObjectKeyMapper> customObjectKeyMapper;
     @ConfigProperty(name = PROP_BUCKET_NAME)
     String bucket;
-    S3Client client = null;
+    S3Client s3client = null;
     @ConfigProperty(name = PROP_REGION_NAME)
     String region;
     private ObjectKeyMapper objectKeyMapper = new DefaultObjectKeyMapper();
@@ -74,8 +77,8 @@ public abstract class AbstractS3ChangeConsumer implements DebeziumEngine.ChangeC
         }
         LOGGER.info("Using '{}' stream name mapper", objectKeyMapper);
         if (customClient.isResolvable()) {
-            client = customClient.get();
-            LOGGER.info("Obtained custom configured S3Client '{}'", client);
+            s3client = customClient.get();
+            LOGGER.info("Obtained custom configured S3Client '{}'", s3client);
             return;
         }
 
@@ -87,14 +90,14 @@ public abstract class AbstractS3ChangeConsumer implements DebeziumEngine.ChangeC
         if (!StringUtils.isEmpty(endpointOverride)) {
             clientBuilder.endpointOverride(new URI(endpointOverride));
         }
-        client = clientBuilder.build();
-        LOGGER.info("Using default S3Client '{}'", client);
+        s3client = clientBuilder.build();
+        LOGGER.info("Using default S3Client '{}'", s3client);
     }
 
     @PreDestroy
     void close() {
         try {
-            client.close();
+            s3client.close();
         } catch (Exception e) {
             LOGGER.warn("Exception while closing S3 client: ", e);
         }
@@ -129,9 +132,9 @@ public abstract class AbstractS3ChangeConsumer implements DebeziumEngine.ChangeC
 
             final PutObjectRequest putRecord = PutObjectRequest.builder()
                     .bucket(bucket)
-                    .key(objectKeyMapper.map(record.destination(), UUID.randomUUID().toString(), batchTime))
+                    .key(objectKeyMapper.map(record.destination(), batchTime, UUID.randomUUID().toString()))
                     .build();
-            client.putObject(putRecord, RequestBody.fromBytes(getByte(record.value())));
+            s3client.putObject(putRecord, RequestBody.fromBytes(getByte(record.value())));
             committer.markProcessed(record);
         }
         committer.markBatchFinished();

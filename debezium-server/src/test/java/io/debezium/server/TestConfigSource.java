@@ -5,13 +5,14 @@
  */
 package io.debezium.server;
 
-import io.debezium.util.Testing;
-import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
-import org.eclipse.microprofile.config.spi.ConfigSource;
-
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+
+import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
+import org.eclipse.microprofile.config.spi.ConfigSource;
+
+import io.debezium.util.Testing;
 
 public class TestConfigSource implements ConfigSource {
 
