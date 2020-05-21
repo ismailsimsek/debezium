@@ -38,6 +38,12 @@ public class S3BatchIT {
     protected static S3Client s3client = null;
     @Inject
     DebeziumServer server;
+
+    {
+        Testing.Debug.enable();
+        Testing.Files.delete(TestConfigSource.OFFSET_STORE_PATH);
+    }
+
     @AfterAll
     static void stop() {
         if (s3server != null) {
@@ -59,7 +65,7 @@ public class S3BatchIT {
         s3server.start();
         ProfileCredentialsProvider pcred = ProfileCredentialsProvider.create("default");
         s3client = S3Client.builder()
-                .region(Region.of(TestConfigSource.AWS_REGION))
+                .region(Region.of(TestConfigSource.KINESIS_REGION))
                 .credentialsProvider(pcred)
                 .endpointOverride(new java.net.URI("http://" + s3server.getContainerIpAddress() + ':' + s3server.getMappedPort()))
                 .build();
@@ -75,7 +81,7 @@ public class S3BatchIT {
                     .build();
             ListObjectsResponse res = s3client.listObjects(listObjects);
             List<S3Object> objects = res.contents();
-            if (objects.size() >= MESSAGE_COUNT){
+            if (objects.size() >= MESSAGE_COUNT) {
                 Testing.print(objects.toString());
             }
             return objects.size() >= MESSAGE_COUNT;

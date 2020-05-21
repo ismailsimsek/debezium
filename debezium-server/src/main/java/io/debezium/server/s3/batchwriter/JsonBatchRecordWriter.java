@@ -15,24 +15,21 @@
 
 package io.debezium.server.s3.batchwriter;
 
+import com.google.common.io.Files;
+import io.debezium.engine.ChangeEvent;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.io.Files;
-
-import io.debezium.engine.ChangeEvent;
-
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class JsonBatchRecordWriter implements BatchRecordWriter {
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonBatchRecordWriter.class);
@@ -49,7 +46,7 @@ public class JsonBatchRecordWriter implements BatchRecordWriter {
             FileOutputStream outStream = new FileOutputStream(nf, true);
             files.put(objectKey, outStream);
         }
-        IOUtils.write(record.value().toString() + IOUtils.LINE_SEPARATOR, files.get(objectKey), Charset.defaultCharset());
+        IOUtils.write(record.value() + IOUtils.LINE_SEPARATOR, files.get(objectKey), Charset.defaultCharset());
 
     }
 

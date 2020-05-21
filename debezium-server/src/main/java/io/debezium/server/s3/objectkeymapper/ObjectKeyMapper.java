@@ -7,8 +7,6 @@ package io.debezium.server.s3.objectkeymapper;
 
 import java.time.LocalDateTime;
 
-import io.debezium.engine.ChangeEvent;
-
 /**
  * Transforms the name of the record destination to the Kinesis stream name.
  *
@@ -17,5 +15,7 @@ import io.debezium.engine.ChangeEvent;
 
 public interface ObjectKeyMapper {
 
-    String map(ChangeEvent<Object, Object> record, LocalDateTime batchTime);
+    String map(String destination, LocalDateTime batchTime);
+
+    String map(String destination, String recordId, LocalDateTime batchTime);
 }

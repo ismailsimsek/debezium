@@ -22,10 +22,10 @@ import java.io.IOException;
 
 public interface BatchRecordWriter {
 
-    public void append(String objectKey, ChangeEvent<Object, Object> record) throws IOException;
+    void append(String objectKey, ChangeEvent<Object, Object> record) throws IOException;
 
-    public void upload(S3Client s3Client, String bucket) throws IOException;
+    void upload(S3Client s3Client, String bucket) throws IOException;
 
-    public void remove() throws IOException;
+    void remove() throws IOException;
 
 }
