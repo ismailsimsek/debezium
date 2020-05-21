@@ -11,8 +11,17 @@
     <name>Debezium Standalone Quarkus Server</name>
     <packaging>jar</packaging>
 
+    <repositories>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
+        </repository>
+    </repositories>
     <properties>
         <version.kinesis>2.13.13</version.kinesis>
+        <version.s3>2.13.13</version.s3>
+        <aws-java-sdk.version>1.11.784</aws-java-sdk.version>
+        <camel-aws2-s3-kafka-connector.version>0.1.0</camel-aws2-s3-kafka-connector.version>
 
         <!-- Assembly configuration -->
         <assembly.descriptor>server-distribution</assembly.descriptor>
@@ -33,6 +42,16 @@
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>kinesis</artifactId>
                 <version>${version.kinesis}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3</artifactId>
+                <version>${version.s3}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-java-sdk-s3</artifactId>
+                <version>${aws-java-sdk.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -73,6 +92,16 @@
             <artifactId>kinesis</artifactId>
             <optional>true</optional>
         </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-java-sdk-s3</artifactId>
+            <optional>true</optional>
+        </dependency>
 
         <!-- Testing -->
         <dependency>
@@ -104,6 +133,7 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers</artifactId>
+            <version>1.14.2</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -111,6 +141,25 @@
             <artifactId>debezium-connector-postgres</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>7.0.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.camel.kafkaconnector</groupId>
+            <artifactId>camel-aws-s3-kafka-connector</artifactId>
+            <version>${camel-aws2-s3-kafka-connector.version}</version>
+        </dependency>
+        <!-- https://mvnrepository.com/artifact/io.confluent/kafka-connect-storage-cloud -->
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-connect-storage-cloud</artifactId>
+            <version>5.4.2</version>
+            <type>pom</type>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>

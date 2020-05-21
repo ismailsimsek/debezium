@@ -66,7 +66,7 @@ public class KinesisIT {
         }
 
         kinesis = KinesisClient.builder()
-                .region(Region.of(TestConfigSource.KINESIS_REGION))
+                .region(Region.of(TestConfigSource.AWS_REGION))
                 .credentialsProvider(ProfileCredentialsProvider.create("default"))
                 .build();
 
