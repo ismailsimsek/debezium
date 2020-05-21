@@ -52,7 +52,7 @@ public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
 
         if (!files.containsKey(destination)) {
             File newBatchFileName = TEMPDIR.toPath().resolve(mapper.map(destination, batchTime, 0)).toFile();
-            LOGGER.error("Creting new File {}", newBatchFileName.getAbsolutePath());
+            LOGGER.debug("Creting new Batch {} File {}", 0, newBatchFileName.getAbsolutePath());
             files.put(destination, new BatchFile(newBatchFileName));
         }
         BatchFile afile = files.get(destination);
@@ -60,10 +60,8 @@ public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
         // process batch
         if (afile.getNumRecords() > MAX_ROWS) {
             this.uploadBatchFile(afile.getAbsolutePath());
-            LOGGER.error("NEW BATCH ID  {}", afile.getBatchId());
-            LOGGER.error("NEW getNumRecords ID  {}", afile.getNumRecords());
             File newBatchFileName = TEMPDIR.toPath().resolve(mapper.map(destination, batchTime, afile.getBatchId())).toFile();
-            LOGGER.error("Creting new B--File {}", newBatchFileName.getAbsolutePath());
+            LOGGER.debug("Creting new Batch {} File {}", afile.getBatchId(), newBatchFileName.getAbsolutePath());
             afile.setBatchFile(newBatchFileName);
         }
 
