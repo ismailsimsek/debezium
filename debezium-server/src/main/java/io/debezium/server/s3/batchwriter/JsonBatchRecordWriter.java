@@ -31,17 +31,24 @@ import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class JsonBatchRecordWriter implements BatchRecordWriter {
+public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonBatchRecordWriter.class);
-    final static File TEMPDIR = Files.createTempDir();
-    ConcurrentHashMap<String, FileOutputStream> files = new ConcurrentHashMap<>();
+    static final ConcurrentHashMap<String, FileOutputStream> files = new ConcurrentHashMap<>();
+    static final File TEMPDIR = Files.createTempDir();
+    private final S3Client s3Client;
+    private final String bucket;
+
+    public JsonBatchRecordWriter(S3Client s3Client, String bucket) {
+        this.s3Client = s3Client;
+        this.bucket = bucket;
+    }
 
     @Override
     public void append(String objectKey, ChangeEvent<Object, Object> record) throws IOException {
 
         if (!files.containsKey(objectKey)) {
             File nf = TEMPDIR.toPath().resolve(objectKey).toFile();
-            LOGGER.error("Creating file " + nf.getAbsolutePath().toLowerCase());
+            LOGGER.debug("Creating file " + nf.getAbsolutePath().toLowerCase());
             nf.getParentFile().mkdirs();
             FileOutputStream outStream = new FileOutputStream(nf, true);
             files.put(objectKey, outStream);
@@ -51,26 +58,26 @@ public class JsonBatchRecordWriter implements BatchRecordWriter {
     }
 
     @Override
-    public void upload(S3Client s3Client, String bucket) throws IOException {
+    public void uploadBatch() throws IOException {
         for (Map.Entry<String, FileOutputStream> o : files.entrySet()) {
             o.getValue().close();
-            LOGGER.error("Uploading file " + o.getKey());
+            LOGGER.debug("Uploading file {} to s3 {}", TEMPDIR.toPath().resolve(o.getKey()), bucket);
             final PutObjectRequest putRecord = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(o.getKey())
                     .build();
             s3Client.putObject(putRecord, TEMPDIR.toPath().resolve(o.getKey()));
-        }
-        remove();
-    }
-
-    @Override
-    public void remove() throws IOException {
-        for (Map.Entry<String, FileOutputStream> o : files.entrySet()) {
-            o.getValue().close();
+            LOGGER.debug("Deleting File {}", o.getKey());
             TEMPDIR.toPath().resolve(o.getKey()).toFile().delete();
         }
         files.clear();
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (Map.Entry<String, FileOutputStream> o : files.entrySet()) {
+            o.getValue().close();
+        }
         FileUtils.deleteDirectory(TEMPDIR);
     }
 }

@@ -35,14 +35,13 @@ public class S3BatchChangeConsumer extends AbstractS3ChangeConsumer {
     public void handleBatch(List<ChangeEvent<Object, Object>> records, RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
         try {
-            LocalDateTime batchTime = LocalDateTime.now();
-            BatchRecordWriter batchWriter = new JsonBatchRecordWriter();
+            BatchRecordWriter batchWriter = new JsonBatchRecordWriter(client, bucket);
             for (ChangeEvent<Object, Object> record : records) {
                 // print(record);
-                batchWriter.append(objectKeyMapper.map(record.destination(), batchTime), record);
+                batchWriter.append(objectKeyMapper.map(record.destination(), LocalDateTime.now()), record);
                 committer.markProcessed(record);
             }
-            batchWriter.upload(client, bucket);
+            batchWriter.uploadBatch();
             committer.markBatchFinished();
         }
         catch (Exception e) {

@@ -70,8 +70,6 @@ public class S3BatchIT {
                 .endpointOverride(new java.net.URI("http://" + s3server.getContainerIpAddress() + ':' + s3server.getMappedPort()))
                 .build();
         s3client.createBucket(CreateBucketRequest.builder().bucket(TestConfigSource.S3_BUCKET).build());
-        s3client.createBucket(CreateBucketRequest.builder().bucket("testing-s3-slient").build());
-        Assertions.assertThat(s3client.listBuckets().toString().contains("testing-s3-slient"));
         Assertions.assertThat(s3client.listBuckets().toString().contains(TestConfigSource.S3_BUCKET));
 
         Awaitility.await().atMost(Duration.ofSeconds(TestConfigSource.waitForSeconds())).until(() -> {

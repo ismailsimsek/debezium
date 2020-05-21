@@ -64,7 +64,7 @@ public abstract class AbstractS3ChangeConsumer implements DebeziumEngine.ChangeC
     String bucket;
     S3Client client = null;
     @ConfigProperty(name = PROP_REGION_NAME)
-    private String region;
+    String region;
     private ObjectKeyMapper objectKeyMapper = new DefaultObjectKeyMapper();
 
     @PostConstruct

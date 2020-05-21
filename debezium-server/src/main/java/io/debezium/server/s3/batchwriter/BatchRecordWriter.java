@@ -16,7 +16,6 @@
 package io.debezium.server.s3.batchwriter;
 
 import io.debezium.engine.ChangeEvent;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import java.io.IOException;
 
@@ -24,8 +23,5 @@ public interface BatchRecordWriter {
 
     void append(String objectKey, ChangeEvent<Object, Object> record) throws IOException;
 
-    void upload(S3Client s3Client, String bucket) throws IOException;
-
-    void remove() throws IOException;
-
+    void uploadBatch() throws IOException;
 }
