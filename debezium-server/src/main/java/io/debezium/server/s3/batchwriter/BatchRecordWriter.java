@@ -15,9 +15,9 @@
 
 package io.debezium.server.s3.batchwriter;
 
-import java.io.IOException;
-
 import io.debezium.engine.ChangeEvent;
+
+import java.io.IOException;
 
 public interface BatchRecordWriter {
 

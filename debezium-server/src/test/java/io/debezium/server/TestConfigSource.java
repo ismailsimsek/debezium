@@ -45,14 +45,16 @@ public class TestConfigSource implements ConfigSource {
         integrationTest.put("debezium.sink.s3.endpointoverride", "http://localhost:9000");
         integrationTest.put("debezium.sink.s3.bucket.name", S3_BUCKET);
         integrationTest.put("debezium.sink.s3.objectkey.prefix", "debezium-server-");
-        // integrationTest.put("debezium.format.key", "avro");
-        // integrationTest.put("debezium.format.value", "avro");
-        // integrationTest.put("schema.registry.url", "http://localhost:8081");
-        // integrationTest.put("debezium.schema.registry.url", "http://localhost:8081");
-        // integrationTest.put("key.converter.schema.registry.url", "http://localhost:8081");
-        // integrationTest.put("value.converter.schema.registry.url", "http://localhost:8081");
-        // integrationTest.put("key.converter", "io.confluent.connect.avro.AvroConverter");
-        // integrationTest.put("value.converter", "io.confluent.connect.avro.AvroConverter");
+        /*
+         * integrationTest.put("debezium.format.key", "avro");
+         * integrationTest.put("debezium.format.value", "avro");
+         * integrationTest.put("schema.registry.url", "http://localhost:8081");
+         * integrationTest.put("debezium.schema.registry.url", "http://localhost:8081");
+         * integrationTest.put("key.converter.schema.registry.url", "http://localhost:8081");
+         * integrationTest.put("value.converter.schema.registry.url", "http://localhost:8081");
+         * integrationTest.put("key.converter", "io.confluent.connect.avro.AvroConverter");
+         * integrationTest.put("value.converter", "io.confluent.connect.avro.AvroConverter");
+         */
 
         integrationTest.put("debezium.source.connector.class", "io.debezium.connector.postgresql.PostgresConnector");
         integrationTest.put("debezium.source." + StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG, OFFSET_STORE_PATH.toAbsolutePath().toString());

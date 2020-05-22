@@ -32,13 +32,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(JsonBatchRecordWriter.class);
     static final ConcurrentHashMap<String, BatchFile> files = new ConcurrentHashMap<>();
     static final File TEMPDIR = Files.createTempDir();
-    private final S3Client s3Client;
-    private final String bucket;
+    private static final Logger LOGGER = LoggerFactory.getLogger(JsonBatchRecordWriter.class);
     private static final LocalDateTime batchTime = LocalDateTime.now();
     private final static int MAX_ROWS = 2;
+    private final S3Client s3Client;
+    private final String bucket;
     private final ObjectKeyMapper mapper;
 
     public JsonBatchRecordWriter(ObjectKeyMapper mapper, S3Client s3Client, String bucket) {
