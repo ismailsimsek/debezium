@@ -5,6 +5,25 @@
  */
 package io.debezium.server.s3;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.enterprise.context.Dependent;
+import javax.enterprise.inject.Instance;
+import javax.inject.Inject;
+
+import org.apache.commons.lang3.StringUtils;
+import org.eclipse.microprofile.config.Config;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.debezium.DebeziumException;
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
@@ -13,29 +32,13 @@ import io.debezium.engine.format.Json;
 import io.debezium.server.CustomConsumerBuilder;
 import io.debezium.server.s3.objectkeymapper.DefaultObjectKeyMapper;
 import io.debezium.server.s3.objectkeymapper.ObjectKeyMapper;
-import org.apache.commons.lang3.StringUtils;
-import org.eclipse.microprofile.config.Config;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.enterprise.context.Dependent;
-import javax.enterprise.inject.Instance;
-import javax.inject.Inject;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -95,7 +98,8 @@ public abstract class AbstractS3ChangeConsumer implements DebeziumEngine.ChangeC
     void close() {
         try {
             s3client.close();
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             LOGGER.warn("Exception while closing S3 client: ", e);
         }
     }
@@ -103,7 +107,8 @@ public abstract class AbstractS3ChangeConsumer implements DebeziumEngine.ChangeC
     private byte[] getByte(Object object) {
         if (object instanceof byte[]) {
             return (byte[]) object;
-        } else if (object instanceof String) {
+        }
+        else if (object instanceof String) {
             return ((String) object).getBytes();
         }
         throw new DebeziumException(unsupportedTypeMessage(object));

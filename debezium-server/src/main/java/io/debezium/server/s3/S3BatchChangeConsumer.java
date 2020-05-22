@@ -5,20 +5,22 @@
  */
 package io.debezium.server.s3;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.List;
+
+import javax.enterprise.context.Dependent;
+import javax.inject.Named;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine.RecordCommitter;
 import io.debezium.server.s3.batchwriter.BatchRecordWriter;
 import io.debezium.server.s3.batchwriter.JsonBatchRecordWriter;
 import io.debezium.server.s3.objectkeymapper.ObjectKeyMapper;
 import io.debezium.server.s3.objectkeymapper.TimeBasedDailyObjectKeyMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.enterprise.context.Dependent;
-import javax.inject.Named;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.util.List;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -44,7 +46,8 @@ public class S3BatchChangeConsumer extends AbstractS3ChangeConsumer {
             }
             batchWriter.uploadBatch();
             committer.markBatchFinished();
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             StringWriter sw = new StringWriter();
             e.printStackTrace(new PrintWriter(sw));
             LOGGER.error(sw.toString());

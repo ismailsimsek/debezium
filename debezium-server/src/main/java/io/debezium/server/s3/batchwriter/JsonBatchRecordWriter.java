@@ -15,21 +15,24 @@
 
 package io.debezium.server.s3.batchwriter;
 
-import com.google.common.io.Files;
-import io.debezium.engine.ChangeEvent;
-import io.debezium.server.s3.objectkeymapper.ObjectKeyMapper;
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.commons.io.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.io.Files;
+
+import io.debezium.engine.ChangeEvent;
+import io.debezium.server.s3.objectkeymapper.ObjectKeyMapper;
+
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
     static final ConcurrentHashMap<String, BatchFile> files = new ConcurrentHashMap<>();
