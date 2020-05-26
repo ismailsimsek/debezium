@@ -26,14 +26,21 @@ public class S3TestConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.s3.bucket.name", S3_BUCKET);
         s3Test.put("debezium.sink.s3.objectkey.prefix", "debezium-server-");
         /*
-         * integrationTest.put("debezium.format.key", "avro");
-         * integrationTest.put("debezium.format.value", "avro");
-         * integrationTest.put("schema.registry.url", "http://localhost:8081");
-         * integrationTest.put("debezium.schema.registry.url", "http://localhost:8081");
-         * integrationTest.put("key.converter.schema.registry.url", "http://localhost:8081");
-         * integrationTest.put("value.converter.schema.registry.url", "http://localhost:8081");
-         * integrationTest.put("key.converter", "io.confluent.connect.avro.AvroConverter");
-         * integrationTest.put("value.converter", "io.confluent.connect.avro.AvroConverter");
+         * s3Test.put("debezium.format.key", "avro");
+         * s3Test.put("debezium.format.value", "avro");
+         * s3Test.put("schema.registry.url", "http://localhost:8081");
+         * s3Test.put("internal.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("debezium.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("key.converter.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("value.converter.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("internal.key.converter.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("internal.value.converter.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("debezium.key.converter.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("debezium.value.converter.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("key.converter", "io.confluent.connect.avro.AvroConverter");
+         * s3Test.put("value.converter", "io.confluent.connect.avro.AvroConverter");
+         * s3Test.put("internal.key.converter", "io.confluent.connect.avro.AvroConverter");
+         * s3Test.put("internal.value.converter", "io.confluent.connect.avro.AvroConverter");
          */
 
         s3Test.put("debezium.source.connector.class", "io.debezium.connector.postgresql.PostgresConnector");

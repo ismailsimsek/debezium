@@ -5,24 +5,28 @@
  */
 package io.debezium.server.s3;
 
-import io.debezium.server.DebeziumServer;
-import io.debezium.server.events.ConnectorCompletedEvent;
-import io.debezium.util.Testing;
-import io.quarkus.test.junit.QuarkusTest;
+import java.time.Duration;
+
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+
 import org.awaitility.Awaitility;
 import org.fest.assertions.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
+
+import io.debezium.server.DebeziumServer;
+import io.debezium.server.TestDatabase;
+import io.debezium.server.events.ConnectorCompletedEvent;
+import io.debezium.util.Testing;
+import io.quarkus.test.junit.QuarkusTest;
+
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
-
-import javax.enterprise.event.Observes;
-import javax.inject.Inject;
-import java.time.Duration;
 
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to Kinesis stream.
@@ -33,8 +37,9 @@ import java.time.Duration;
 public class S3IT {
 
     private static final int MESSAGE_COUNT = 4;
-    protected static TestS3 s3server = null;
     protected static S3Client s3client = null;
+    protected static TestS3 s3server = new TestS3();
+    protected static TestDatabase db = new TestDatabase();
     @Inject
     DebeziumServer server;
 
@@ -45,6 +50,9 @@ public class S3IT {
 
     @AfterAll
     static void stop() {
+        if (db != null) {
+            db.stop();
+        }
         if (s3server != null) {
             s3server.stop();
         }
@@ -59,9 +67,8 @@ public class S3IT {
     @Test
     public void testS3() throws Exception {
         Testing.Print.enable();
-
-        s3server = new TestS3();
         s3server.start();
+        db.start();
         ProfileCredentialsProvider pcred = ProfileCredentialsProvider.create("default");
         s3client = S3Client.builder()
                 .region(Region.of(S3TestConfigSource.S3_REGION))
