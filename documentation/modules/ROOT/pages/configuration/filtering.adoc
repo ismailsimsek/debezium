@@ -1,5 +1,6 @@
+[id="message-filtering"]
 = Message Filtering
-include::../_attributes.adoc[]
+
 :toc:
 :toc-placement: macro
 :linkattrs:
@@ -23,7 +24,7 @@ This is a very powerful mechanism but has two drawbacks:
 * It is necessary to compile the transformation upfront and deploy it to Kafka Connect.
 * Every change needs code recompilation and redeployment, leading to inflexible operations.
 
-To solve this problem, Debezium comes with the Filtering SMT.
+To solve this problem, {prodname} comes with the Filtering SMT.
 This SMT allows the operator to write an expression that is evaluated for each event and according to the result, it is either filtered out or passed on for further processing.
 The current implementation supports any scripting language which integrates with https://jcp.org/en/jsr/detail?id=223[JSR 223] (Scripting for the Java(TM) Platform).
 
@@ -43,12 +44,12 @@ In this example we are using `Groovy` as expression language, and we're filterin
 
 [IMPORTANT]
 ====
-Debezium does not come with the language implementations in its installation packages.
+{prodname} does not come with the language implementations in its installation packages.
 It is the user's responsibility to provide an implementation, such as link:https://groovy-lang.org/[Groovy 3] or link:https://github.com/graalvm/graaljs[GraalVM JavaScript], on the classpath.
 Bootstrapping is done exclusively via the JSR 223 API currently, so the engine's support for this API must be provided as well.
 ====
 
-Debezium binds four variables into the evaluation context:
+{prodname} binds four variables into the evaluation context:
 
 * `key` - a key of the message
 * `value` - a value of the message
@@ -90,28 +91,28 @@ When using JavaScript via Graal.js, simplified property references can be used, 
 value.op == 'u' && value.before.id == 2
 ----
 
-[[configuration-options]]
+[[filter-configuration-options]]
 == Configuration options
-[cols="35%a,10%a,55%a",options="header"]
-|=======================
+[cols="30%a,25%a,45%a"]
+|===
 |Property
 |Default
 |Description
 
-|[[configuration-option-topic-regex]]<<configuration-option-topic-regex, `topic.regex`>>
+|[[filter-topic-regex]]<<filter-topic-regex, `topic.regex`>>
 |
 |An optional regular expression for specifying the topic(s) this transformation should be applied to. Records on any topic whose name does not match the given expression are passed on as-is.
 
-|[[configuration-option-language]]<<configuration-option-language, `language`>>
+|[[filter-language]]<<filter-language, `language`>>
 |
 |The language in which the expression is written. Must begin with `jsr223.`, e.g. `jsr223.groovy`, or `jsr223.graal.js`. Currently, only bootstrapping via the https://jcp.org/en/jsr/detail?id=223[JSR 223 API] ("Scripting for the Java (TM) Platform") is supported.
 
-|[[configuration-option-condition]]<<configuration-option-condition, `condition`>>
+|[[filter-condition]]<<filter-condition, `condition`>>
 |
 |The expression evaluated for every message. Must evaluate to a boolean value where a result of `true` will keep the message, and a result of `false` will remove it.
 
-|[[configuration-option-null-handling-mode]]<<configuration-option-null-handling-mode, `null.handling.mode`>>
+|[[filter-null-handling-mode]]<<filter-null-handling-mode, `null.handling.mode`>>
 |`keep`
 |Prescribes how the transformation should handle `null` (tombstone) messages. The options are: `keep` (the default) to pass the message through, `drop` to remove the messages completely or `evaluate` to run the message through the condition expression.
 
-|=======================
+|===

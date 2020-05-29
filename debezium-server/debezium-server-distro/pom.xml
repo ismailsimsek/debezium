@@ -15,6 +15,13 @@
         <assembly.descriptor>server-distribution</assembly.descriptor>
     </properties>
 
+    <dependencies>
+        <dependency>
+            <groupId>io.debezium</groupId>
+            <artifactId>debezium-server-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
     <build>
         <plugins>
             <plugin>
@@ -63,10 +70,6 @@
                 <dependency>
                     <groupId>io.debezium</groupId>
                     <artifactId>debezium-server-pubsub</artifactId>
-                </dependency>
-                <dependency>
-                    <groupId>io.debezium</groupId>
-                    <artifactId>debezium-server-s3</artifactId>
                 </dependency>
             </dependencies>
             <build>
