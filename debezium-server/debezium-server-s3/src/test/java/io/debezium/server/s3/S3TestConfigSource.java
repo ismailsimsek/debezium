@@ -25,6 +25,8 @@ public class S3TestConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.s3.endpointoverride", "http://localhost:9000");
         s3Test.put("debezium.sink.s3.bucket.name", S3_BUCKET);
         s3Test.put("debezium.sink.s3.objectkey.prefix", "debezium-server-");
+        s3Test.put("debezium.sink.s3.credentials.profile", "default");
+        s3Test.put("debezium.sink.s3.credentials.useinstancecred", "false");
         /*
          * s3Test.put("debezium.format.key", "avro");
          * s3Test.put("debezium.format.value", "avro");
