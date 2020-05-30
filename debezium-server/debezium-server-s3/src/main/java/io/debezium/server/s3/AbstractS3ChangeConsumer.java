@@ -91,7 +91,6 @@ public abstract class AbstractS3ChangeConsumer extends BaseChangeConsumer implem
             credProvider = ProfileCredentialsProvider.create(credentialsProfile);
         }
 
-
         S3ClientBuilder clientBuilder = S3Client.builder()
                 .region(Region.of(region))
                 .credentialsProvider(credProvider);
