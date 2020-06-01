@@ -5,13 +5,12 @@
  */
 package io.debezium.server.s3;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
-
 import io.debezium.server.TestConfigSource;
 import io.debezium.server.TestDatabase;
+import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class S3TestConfigSource extends TestConfigSource {
 
@@ -23,29 +22,19 @@ public class S3TestConfigSource extends TestConfigSource {
     public S3TestConfigSource() {
         s3Test.put("debezium.sink.type", "s3");
         s3Test.put("debezium.sink.s3.region", S3_REGION);
-        s3Test.put("debezium.sink.s3.endpointoverride", "http://localhost:9000");
+        s3Test.put("debezium.sink.s3.endpointoverride", "http://localhost:9001");
         s3Test.put("debezium.sink.s3.bucket.name", S3_BUCKET);
         s3Test.put("debezium.sink.s3.objectkey.prefix", "debezium-server-");
         s3Test.put("debezium.sink.s3.credentials.profile", "default");
         s3Test.put("debezium.sink.s3.credentials.useinstancecred", "false");
         /*
          * s3Test.put("debezium.format.key", "avro");
+         * s3Test.put("debezium.format.key.converter", "io.confluent.connect.avro.AvroConverter");
          * s3Test.put("debezium.format.value", "avro");
-         * s3Test.put("schema.registry.url", "http://localhost:8081");
-         * s3Test.put("internal.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("debezium.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("key.converter.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("value.converter.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("internal.key.converter.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("internal.value.converter.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("debezium.key.converter.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("debezium.value.converter.schema.registry.url", "http://localhost:8081");
-         * s3Test.put("key.converter", "io.confluent.connect.avro.AvroConverter");
-         * s3Test.put("value.converter", "io.confluent.connect.avro.AvroConverter");
-         * s3Test.put("internal.key.converter", "io.confluent.connect.avro.AvroConverter");
-         * s3Test.put("internal.value.converter", "io.confluent.connect.avro.AvroConverter");
+         * s3Test.put("debezium.format.value.converter", "io.confluent.connect.avro.AvroConverter");
+         * s3Test.put("debezium.format.key.schema.registry.url", "http://localhost:8081");
+         * s3Test.put("debezium.format.value.schema.registry.url", "http://localhost:8081");
          */
-
         s3Test.put("debezium.source.connector.class", "io.debezium.connector.postgresql.PostgresConnector");
         s3Test.put("debezium.source." + StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG, OFFSET_STORE_PATH.toAbsolutePath().toString());
         s3Test.put("debezium.source.offset.flush.interval.ms", "0");

@@ -5,19 +5,18 @@
  */
 package io.debezium.server.s3;
 
-import java.time.Duration;
-
+import io.debezium.util.Testing;
 import org.testcontainers.containers.FixedHostPortGenericContainer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
-
-import io.debezium.util.Testing;
-
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+
+import java.time.Duration;
 
 public class TestS3 {
 
     static final int MINIO_DEFAULT_PORT = 9000;
+    static final int MINIO_DEFAULT_PORT_MAP = 9001;
     static final String DEFAULT_IMAGE = "minio/minio";
     static final String DEFAULT_TAG = "edge";
     static final String DEFAULT_STORAGE_DIRECTORY = "/data";
@@ -35,7 +34,7 @@ public class TestS3 {
     public void start() {
 
         this.container = new FixedHostPortGenericContainer(DEFAULT_IMAGE + ':' + DEFAULT_TAG)
-                .withFixedExposedPort(MINIO_DEFAULT_PORT, MINIO_DEFAULT_PORT)
+                .withFixedExposedPort(MINIO_DEFAULT_PORT_MAP, MINIO_DEFAULT_PORT)
                 .waitingFor(new HttpWaitStrategy()
                         .forPath(HEALTH_ENDPOINT)
                         .forPort(MINIO_DEFAULT_PORT)
