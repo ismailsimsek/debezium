@@ -5,7 +5,6 @@
  */
 package io.debezium.server.s3;
 
-import io.debezium.DebeziumException;
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.engine.DebeziumEngine.RecordCommitter;
@@ -113,42 +112,20 @@ public abstract class AbstractS3ChangeConsumer extends BaseChangeConsumer implem
         }
     }
 
-    private byte[] getByte(Object object) {
-        if (object instanceof byte[]) {
-            return (byte[]) object;
-        }
-        else if (object instanceof String) {
-            return ((String) object).getBytes();
-        }
-        throw new DebeziumException(unsupportedTypeMessage(object));
-    }
-
-    private String getString(Object object) {
-        if (object instanceof String) {
-            return (String) object;
-        }
-        throw new DebeziumException(unsupportedTypeMessage(object));
-    }
-
-    public String unsupportedTypeMessage(Object object) {
-        final String type = (object == null) ? "null" : object.getClass().getName();
-        return "Unexpected data type '" + type + "'";
-    }
-
     @Override
     public void handleBatch(List<ChangeEvent<Object, Object>> records, RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
         LocalDateTime batchTime = LocalDateTime.now();
         for (ChangeEvent<Object, Object> record : records) {
 
-            LOGGER.error(record.destination().toString());
+            LOGGER.error(record.destination());
             LOGGER.error(record.key().toString());
             LOGGER.error(record.value().toString());
             final PutObjectRequest putRecord = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(objectKeyMapper.map(record.destination(), batchTime, UUID.randomUUID().toString()))
                     .build();
-            s3client.putObject(putRecord, RequestBody.fromBytes(getByte(record.value())));
+            s3client.putObject(putRecord, RequestBody.fromBytes(getBytes(record.value())));
             committer.markProcessed(record);
         }
         committer.markBatchFinished();
