@@ -7,7 +7,6 @@ package io.debezium.server.s3;
 
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
-
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
  *
