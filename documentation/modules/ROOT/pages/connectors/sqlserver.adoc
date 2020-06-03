@@ -17,14 +17,6 @@ Want to help us further hone and improve it? link:/docs/contribute/[Learn how].
 toc::[]
 endif::community[]
 
-ifdef::product[]
-[IMPORTANT]
-====
-Technology Preview features are not supported with Red Hat production service-level agreements (SLAs) and might not be functionally complete; therefore, Red Hat does not recommend implementing any Technology Preview features in production environments. This Technology Preview feature provides early access to upcoming product innovations, enabling you to test functionality and provide feedback during the development process.
-For more information about support scope, see link:https://access.redhat.com/support/offerings/techpreview/[Technology Preview Features Support Scope^].
-====
-endif::product[]
-
 {prodname}'s SQL Server Connector can monitor and record the row-level changes in the schemas of a SQL Server database.
 
 The first time it connects to a SQL Server database/cluster, it reads a consistent snapshot of all of the schemas.
@@ -733,12 +725,6 @@ To make this possible, the SQL Server connector always follows the _delete_ even
 [[sqlserver-transaction-metadata]]
 === Transaction Metadata
 
-[NOTE]
-====
-This feature is under active development right now (incubating),
-so the structure of transaction events or other details may still change as development progresses.
-====
-
 {prodname} can generate events that represents tranaction metadata boundaries and enrich data messages.
 
 ==== Transaction boundaries
@@ -1321,9 +1307,9 @@ This configuration can be sent via POST to a running Kafka Connect service, whic
 
 The {prodname} SQL Server connector has three metric types in addition to the built-in support for JMX metrics that Zookeeper, Kafka, and Kafka Connect have.
 
-* <<snapshot-metrics, snapshot metrics>>; for monitoring the connector when performing snapshots
-* <<streaming-metrics, streaming metrics>>; for monitoring the connector when reading CDC table data
-* <<schema-history-metrics, schema history metrics>>; for monitoring the status of the connector's schema history
+* <<sqlserver-snapshot-metrics, snapshot metrics>>; for monitoring the connector when performing snapshots
+* <<sqlserver-streaming-metrics, streaming metrics>>; for monitoring the connector when reading CDC table data
+* <<sqlserver-schema-history-metrics, schema history metrics>>; for monitoring the status of the connector's schema history
 
 Please refer to the {link-prefix}:{link-debezium-monitoring}[monitoring documentation] for details of how to expose these metrics via JMX.
 
@@ -1426,11 +1412,11 @@ Note that primary key columns are always included in the event's key, also if bl
 Based on the used hash function referential integrity is kept while data is pseudonymized. Supported hash functions are described in the {link-java7-standard-names}[MessageDigest section] of the Java Cryptography Architecture Standard Algorithm Name Documentation.
 The hash is automatically shortened to the length of the column.
 
-Multiple properties with different lengths can be used in a single configuration, although in each the length must be a positive integer or zero. Fully-qualified names for columns are of the form _databaseName_._schemaName_._tableName_._columnName_.
+Multiple properties with different lengths can be used in a single configuration, although in each the length must be a positive integer or zero. Fully-qualified names for columns are of the form _schemaName_._tableName_._columnName_.
 
 Example:
 
-    column.mask.hash.SHA-256.with.salt.CzQMA0cB5K = testDB.dbo.orders.customerName, testDB.dbo.shipment.customerName
+    column.mask.hash.SHA-256.with.salt.CzQMA0cB5K = dbo.orders.customerName, dbo.shipment.customerName
 
 where `CzQMA0cB5K` is a randomly selected salt.
 
@@ -1448,11 +1434,11 @@ Emitting the tombstone event (the default behavior) allows Kafka to completely d
 
 |[[sqlserver-property-column-truncate-to-length-chars]]<<sqlserver-property-column-truncate-to-length-chars, `column.truncate.to._length_.chars`>>
 |_n/a_
-|An optional comma-separated list of regular expressions that match the fully-qualified names of character-based columns whose values should be truncated in the change event message values if the field values are longer than the specified number of characters. Multiple properties with different lengths can be used in a single configuration, although in each the length must be a positive integer. Fully-qualified names for columns are of the form _databaseName_._schemaName_._tableName_._columnName_.
+|An optional comma-separated list of regular expressions that match the fully-qualified names of character-based columns whose values should be truncated in the change event message values if the field values are longer than the specified number of characters. Multiple properties with different lengths can be used in a single configuration, although in each the length must be a positive integer. Fully-qualified names for columns are of the form _schemaName_._tableName_._columnName_.
 
 |[[sqlserver-property-column-mask-with-length-chars]]<<sqlserver-property-column-mask-with-length-chars, `column.mask.with._length_.chars`>>
 |_n/a_
-|An optional comma-separated list of regular expressions that match the fully-qualified names of character-based columns whose values should be replaced in the change event message values with a field value consisting of the specified number of asterisk (`*`) characters. Multiple properties with different lengths can be used in a single configuration, although in each the length must be a positive integer or zero. Fully-qualified names for columns are of the form _databaseName_._schemaName_._tableName_._columnName_.
+|An optional comma-separated list of regular expressions that match the fully-qualified names of character-based columns whose values should be replaced in the change event message values with a field value consisting of the specified number of asterisk (`*`) characters. Multiple properties with different lengths can be used in a single configuration, although in each the length must be a positive integer or zero. Fully-qualified names for columns are of the form _schemaName_._tableName_._columnName_.
 
 |[[sqlserver-property-column-propagate-source-type]]<<sqlserver-property-column-propagate-source-type, `column.propagate.source.type`>>
 |_n/a_
@@ -1473,7 +1459,7 @@ See {link-prefix}:{link-sqlserver-connector}#sqlserver-data-types[] for the list
 |_empty string_
 | A semi-colon list of regular expressions that match fully-qualified tables and columns to map a primary key. +
 Each item (regular expression) must match the fully-qualified `<fully-qualified table>:<a comma-separated list of columns>` representing the custom key. +
-Fully-qualified tables could be defined as _databaseName_._schemaName_._tableName_.
+Fully-qualified tables could be defined as _schemaName_._tableName_.
 |===
 
 The following _advanced_ configuration properties have good defaults that will work in most situations and therefore rarely need to be specified in the connector's configuration.
