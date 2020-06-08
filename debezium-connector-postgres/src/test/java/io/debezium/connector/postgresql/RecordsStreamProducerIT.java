@@ -52,6 +52,7 @@ import org.junit.Test;
 import org.junit.rules.TestRule;
 
 import io.debezium.config.CommonConnectorConfig;
+import io.debezium.config.CommonConnectorConfig.BinaryHandlingMode;
 import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.IntervalHandlingMode;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.SchemaRefreshMode;
@@ -1095,6 +1096,68 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
     }
 
     @Test
+    @FixFor("DBZ-1814")
+    public void shouldReceiveByteaBytes() throws Exception {
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        startConnector(config -> config.with(PostgresConnectorConfig.BINARY_HANDLING_MODE, PostgresConnectorConfig.BinaryHandlingMode.BYTES));
+
+        assertInsert(INSERT_BYTEA_BINMODE_STMT, 1, schemaAndValueForByteaBytes());
+    }
+
+    @Test
+    @FixFor("DBZ-1814")
+    public void shouldReceiveByteaBase64String() throws Exception {
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        startConnector(config -> config.with(PostgresConnectorConfig.BINARY_HANDLING_MODE, PostgresConnectorConfig.BinaryHandlingMode.BASE64));
+
+        assertInsert(INSERT_BYTEA_BINMODE_STMT, 1, schemaAndValueForByteaBase64());
+    }
+
+    @Test
+    @FixFor("DBZ-1814")
+    public void shouldReceiveByteaHexString() throws Exception {
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        startConnector(config -> config.with(PostgresConnectorConfig.BINARY_HANDLING_MODE, PostgresConnectorConfig.BinaryHandlingMode.HEX));
+
+        assertInsert(INSERT_BYTEA_BINMODE_STMT, 1, schemaAndValueForByteaHex());
+    }
+
+    @Test
+    @FixFor("DBZ-1814")
+    public void shouldReceiveUnknownTypeAsBytes() throws Exception {
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        startConnector(config -> config.with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true));
+
+        assertInsert(INSERT_CIRCLE_STMT, 1, schemaAndValueForUnknownColumnBytes());
+    }
+
+    @Test
+    @FixFor("DBZ-1814")
+    public void shouldReceiveUnknownTypeAsBase64() throws Exception {
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        startConnector(config -> config.with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.BASE64));
+
+        assertInsert(INSERT_CIRCLE_STMT, 1, schemaAndValueForUnknownColumnBase64());
+    }
+
+    @Test
+    @FixFor("DBZ-1814")
+    public void shouldReceiveUnknownTypeAsHex() throws Exception {
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        startConnector(config -> config.with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
+                .with(PostgresConnectorConfig.BINARY_HANDLING_MODE, BinaryHandlingMode.HEX));
+
+        assertInsert(INSERT_CIRCLE_STMT, 1, schemaAndValueForUnknownColumnHex());
+    }
+
+    @Test
     @FixFor("DBZ-259")
     public void shouldProcessIntervalDelete() throws Exception {
         final String statements = "INSERT INTO table_with_interval VALUES (default, 'Foo', default);" +
@@ -1500,7 +1563,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                         "INSERT INTO test_table (text) VALUES ('mydata');");
 
         // Expecting 1 data change
-        Awaitility.await().atMost(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS).until(() -> {
+        Awaitility.await().atMost(TestHelper.waitTimeForRecords() * 10, TimeUnit.SECONDS).until(() -> {
             final SourceRecord record = consumeRecord();
             return record != null && Envelope.isEnvelopeSchema(record.valueSchema());
         });
@@ -1512,7 +1575,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
         // Expecting changes for the empty DDL change
         final Set<Long> lsns = new HashSet<>();
-        Awaitility.await().atMost(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS).until(() -> {
+        Awaitility.await().atMost(TestHelper.waitTimeForRecords() * 10, TimeUnit.SECONDS).until(() -> {
             final SourceRecord record = consumeRecord();
             Assertions.assertThat(record.valueSchema().name()).endsWith(".Heartbeat");
             lsns.add((Long) record.sourceOffset().get("lsn"));
@@ -2403,7 +2466,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                         "INSERT INTO test_heartbeat_table (text) VALUES ('test_heartbeat');"));
 
         // Expecting 1 data change
-        Awaitility.await().atMost(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS).until(() -> {
+        Awaitility.await().atMost(TestHelper.waitTimeForRecords() * 10, TimeUnit.SECONDS).until(() -> {
             final SourceRecord record = consumeRecord();
             return record != null && Envelope.isEnvelopeSchema(record.valueSchema());
         });

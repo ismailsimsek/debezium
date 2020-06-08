@@ -136,7 +136,7 @@
                                     <color>yellow</color>
                                 </log>
                                 <wait>
-                                    <time>30000</time> <!-- 30 seconds max -->
+                                    <time>90000</time> <!-- 90 seconds max -->
                                     <log>(?s)org.apache.pulsar.broker.PulsarService - messaging service is ready</log>
                                 </wait>
                             </run>
@@ -177,4 +177,22 @@
             </resource>
         </resources>
     </build>
+    <profiles>
+        <!--  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+              Do not perform any Docker-related functionality
+              To use, specify "-DskipITs" on the Maven command line.
+              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ -->
+        <profile>
+            <id>skip-integration-tests</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>skipITs</name>
+                </property>
+            </activation>
+            <properties>
+                <docker.skip>true</docker.skip>
+            </properties>
+        </profile>
+    </profiles>
 </project>

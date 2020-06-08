@@ -17,6 +17,7 @@ Andras Istvan Nagy
 Andrew Garrett
 Andrew Tongen
 Andrey Pustovetov
+Andy Teijelo
 Anton Kondratev
 Anton Martynov
 Arkoprabho Chakraborti
@@ -84,6 +85,7 @@ Ivan Kovbas
 Ivan Lorenz
 Ivan Luzyanin
 Ivan San Jose
+Ivan Trusov
 Ivan Vucina
 Jakub Cechacek
 Jan-Hendrik Dolling
@@ -106,6 +108,7 @@ Joy Gao
 Juan Antonio Pedraza
 Jun Du
 Jure Kajzer
+Justin Hiza
 Keith Barber
 Kevin Pullin
 Kewei Shang
@@ -153,6 +156,7 @@ Randall Hauch
 Raúl Tovar
 Renato Mefi
 René Kerner
+Robert Hana
 Roman Kuchar
 Sagar Rao
 Sahan Dilshan

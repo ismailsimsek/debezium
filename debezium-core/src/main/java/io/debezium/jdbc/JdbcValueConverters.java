@@ -12,6 +12,9 @@ import static io.debezium.util.NumberConversions.SHORT_FALSE;
 import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.CharBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.sql.SQLXML;
 import java.sql.Types;
@@ -21,6 +24,8 @@ import java.time.OffsetDateTime;
 import java.time.OffsetTime;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjuster;
+import java.util.Base64;
+import java.util.Base64.Encoder;
 import java.util.BitSet;
 import java.util.concurrent.TimeUnit;
 
@@ -30,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.annotation.Immutable;
+import io.debezium.config.CommonConnectorConfig.BinaryHandlingMode;
 import io.debezium.data.Bits;
 import io.debezium.data.SpecialValueDecimal;
 import io.debezium.data.Xml;
@@ -45,6 +51,7 @@ import io.debezium.time.Time;
 import io.debezium.time.Timestamp;
 import io.debezium.time.ZonedTime;
 import io.debezium.time.ZonedTimestamp;
+import io.debezium.util.HexConverter;
 import io.debezium.util.NumberConversions;
 
 /**
@@ -92,6 +99,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
     protected final DecimalMode decimalMode;
     private final TemporalAdjuster adjuster;
     protected final BigIntUnsignedMode bigIntUnsignedMode;
+    protected final BinaryHandlingMode binaryMode;
 
     /**
      * Create a new instance that always uses UTC for the default time zone when converting values without timezone information
@@ -99,7 +107,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
      * columns.
      */
     public JdbcValueConverters() {
-        this(null, TemporalPrecisionMode.ADAPTIVE, ZoneOffset.UTC, null, null);
+        this(null, TemporalPrecisionMode.ADAPTIVE, ZoneOffset.UTC, null, null, null);
     }
 
     /**
@@ -116,15 +124,17 @@ public class JdbcValueConverters implements ValueConverterProvider {
      *            adjustment is necessary
      * @param bigIntUnsignedMode how {@code BIGINT UNSIGNED} values should be treated; may be null if
      *            {@link BigIntUnsignedMode#PRECISE} is to be used
+     * @param binaryMode how binary columns should be represented
      */
     public JdbcValueConverters(DecimalMode decimalMode, TemporalPrecisionMode temporalPrecisionMode, ZoneOffset defaultOffset,
-                               TemporalAdjuster adjuster, BigIntUnsignedMode bigIntUnsignedMode) {
+                               TemporalAdjuster adjuster, BigIntUnsignedMode bigIntUnsignedMode, BinaryHandlingMode binaryMode) {
         this.defaultOffset = defaultOffset != null ? defaultOffset : ZoneOffset.UTC;
         this.adaptiveTimePrecisionMode = temporalPrecisionMode.equals(TemporalPrecisionMode.ADAPTIVE);
         this.adaptiveTimeMicrosecondsPrecisionMode = temporalPrecisionMode.equals(TemporalPrecisionMode.ADAPTIVE_TIME_MICROSECONDS);
         this.decimalMode = decimalMode != null ? decimalMode : DecimalMode.PRECISE;
         this.adjuster = adjuster;
         this.bigIntUnsignedMode = bigIntUnsignedMode != null ? bigIntUnsignedMode : BigIntUnsignedMode.PRECISE;
+        this.binaryMode = binaryMode != null ? binaryMode : BinaryHandlingMode.BYTES;
 
         this.fallbackTimestampWithTimeZone = ZonedTimestamp.toIsoString(
                 OffsetDateTime.of(LocalDate.ofEpochDay(0), LocalTime.MIDNIGHT, defaultOffset),
@@ -155,12 +165,12 @@ public class JdbcValueConverters implements ValueConverterProvider {
             // Fixed-length binary values ...
             case Types.BLOB:
             case Types.BINARY:
-                return SchemaBuilder.bytes();
+                return binaryMode.getSchema();
 
             // Variable-length binary values ...
             case Types.VARBINARY:
             case Types.LONGVARBINARY:
-                return SchemaBuilder.bytes();
+                return binaryMode.getSchema();
 
             // Numeric integers
             case Types.TINYINT:
@@ -274,7 +284,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
             case Types.BINARY:
             case Types.VARBINARY:
             case Types.LONGVARBINARY:
-                return (data) -> convertBinary(column, fieldDefn, data);
+                return (data) -> convertBinary(column, fieldDefn, data, binaryMode);
 
             // Numeric integers
             case Types.TINYINT:
@@ -692,6 +702,18 @@ public class JdbcValueConverters implements ValueConverterProvider {
         });
     }
 
+    protected Object convertBinary(Column column, Field fieldDefn, Object data, BinaryHandlingMode mode) {
+        switch (mode) {
+            case BASE64:
+                return convertBinaryToBase64(column, fieldDefn, data);
+            case HEX:
+                return convertBinaryToHex(column, fieldDefn, data);
+            case BYTES:
+            default:
+                return convertBinaryToBytes(column, fieldDefn, data);
+        }
+    }
+
     /**
      * Converts a value object for an expected JDBC type of {@link Types#BLOB}, {@link Types#BINARY},
      * {@link Types#VARBINARY}, {@link Types#LONGVARBINARY}.
@@ -702,22 +724,79 @@ public class JdbcValueConverters implements ValueConverterProvider {
      * @return the converted value, or null if the conversion could not be made and the column allows nulls
      * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
      */
-    protected Object convertBinary(Column column, Field fieldDefn, Object data) {
+    protected Object convertBinaryToBytes(Column column, Field fieldDefn, Object data) {
         return convertValue(column, fieldDefn, data, BYTE_ZERO, (r) -> {
-            Object dataMut = data;
-            if (dataMut instanceof char[]) {
-                dataMut = new String((char[]) dataMut); // convert to string
+            if (data instanceof String) {
+                r.deliver(toByteBuffer(((String) data)));
             }
-            if (dataMut instanceof String) {
-                // This was encoded as a hexadecimal string, but we receive it as a normal string ...
-                dataMut = ((String) dataMut).getBytes();
+            else if (data instanceof char[]) {
+                r.deliver(toByteBuffer((char[]) data));
             }
-            if (dataMut instanceof byte[]) {
-                r.deliver(convertByteArray(column, (byte[]) dataMut));
+            else if (data instanceof byte[]) {
+                r.deliver(toByteBuffer(column, (byte[]) data));
             }
             else {
                 // An unexpected value
-                r.deliver(unexpectedBinary(dataMut, fieldDefn));
+                r.deliver(unexpectedBinary(data, fieldDefn));
+            }
+        });
+    }
+
+    /**
+     * Converts a value object for an expected JDBC type of {@link Types#BLOB}, {@link Types#BINARY},
+     * {@link Types#VARBINARY}, {@link Types#LONGVARBINARY}.
+     *
+     * @param column the column definition describing the {@code data} value; never null
+     * @param fieldDefn the field definition; never null
+     * @param data the data object to be converted into a {@link Date Kafka Connect date} type; never null
+     * @return the converted value, or null if the conversion could not be made and the column allows nulls
+     * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
+     */
+    protected Object convertBinaryToBase64(Column column, Field fieldDefn, Object data) {
+        return convertValue(column, fieldDefn, data, "", (r) -> {
+            Encoder base64Encoder = Base64.getEncoder();
+
+            if (data instanceof String) {
+                r.deliver(new String(base64Encoder.encode(((String) data).getBytes(StandardCharsets.UTF_8))));
+            }
+            else if (data instanceof char[]) {
+                r.deliver(new String(base64Encoder.encode(toByteArray((char[]) data)), StandardCharsets.UTF_8));
+            }
+            else if (data instanceof byte[]) {
+                r.deliver(new String(base64Encoder.encode((byte[]) data), StandardCharsets.UTF_8));
+            }
+            else {
+                // An unexpected value
+                r.deliver(unexpectedBinary(data, fieldDefn));
+            }
+        });
+    }
+
+    /**
+     * Converts a value object for an expected JDBC type of {@link Types#BLOB}, {@link Types#BINARY},
+     * {@link Types#VARBINARY}, {@link Types#LONGVARBINARY}.
+     *
+     * @param column the column definition describing the {@code data} value; never null
+     * @param fieldDefn the field definition; never null
+     * @param data the data object to be converted into a {@link Date Kafka Connect date} type; never null
+     * @return the converted value, or null if the conversion could not be made and the column allows nulls
+     * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
+     */
+    protected Object convertBinaryToHex(Column column, Field fieldDefn, Object data) {
+        return convertValue(column, fieldDefn, data, "", (r) -> {
+
+            if (data instanceof String) {
+                r.deliver(HexConverter.convertToHexString(((String) data).getBytes(StandardCharsets.UTF_8)));
+            }
+            else if (data instanceof char[]) {
+                r.deliver(HexConverter.convertToHexString(toByteArray((char[]) data)));
+            }
+            else if (data instanceof byte[]) {
+                r.deliver(HexConverter.convertToHexString((byte[]) data));
+            }
+            else {
+                // An unexpected value
+                r.deliver(unexpectedBinary(data, fieldDefn));
             }
         });
     }
@@ -727,7 +806,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
      * can perform value adjustments based on the column definition, e.g. right-pad with 0x00 bytes in case of
      * fixed length BINARY in MySQL.
      */
-    protected ByteBuffer convertByteArray(Column column, byte[] data) {
+    protected ByteBuffer toByteBuffer(Column column, byte[] data) {
         // Kafka Connect would support raw byte arrays, too, but byte buffers are recommended
         return ByteBuffer.wrap(data);
     }
@@ -740,7 +819,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
      * @param fieldDefn the field definition in the Kafka Connect schema; never null
      * @return the converted value, or null if the conversion could not be made and the column allows nulls
      * @throws IllegalArgumentException if the value could not be converted but the column does not allow nulls
-     * @see #convertBinary(Column, Field, Object)
+     * @see #convertBinaryToBytes(Column, Field, Object)
      */
     protected byte[] unexpectedBinary(Object value, Field fieldDefn) {
         logger.warn("Unexpected JDBC BINARY value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
@@ -1237,5 +1316,20 @@ public class JdbcValueConverters implements ValueConverterProvider {
 
     private boolean supportsLargeTimeValues() {
         return adaptiveTimePrecisionMode || adaptiveTimeMicrosecondsPrecisionMode;
+    }
+
+    private byte[] toByteArray(char[] chars) {
+        CharBuffer charBuffer = CharBuffer.wrap(chars);
+        ByteBuffer byteBuffer = Charset.forName("UTF-8").encode(charBuffer);
+        return byteBuffer.array();
+    }
+
+    private ByteBuffer toByteBuffer(char[] chars) {
+        CharBuffer charBuffer = CharBuffer.wrap(chars);
+        return Charset.forName("UTF-8").encode(charBuffer);
+    }
+
+    private ByteBuffer toByteBuffer(String string) {
+        return ByteBuffer.wrap(string.getBytes(StandardCharsets.UTF_8));
     }
 }

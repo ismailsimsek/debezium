@@ -11,6 +11,7 @@ import static io.debezium.connector.postgresql.TestHelper.topicName;
 import static io.debezium.junit.EqualityCheck.LESS_THAN;
 import static junit.framework.TestCase.assertEquals;
 import static org.fest.assertions.Assertions.assertThat;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -64,6 +65,7 @@ import io.debezium.data.VerifyRecord;
 import io.debezium.doc.FixFor;
 import io.debezium.embedded.AbstractConnectorTest;
 import io.debezium.embedded.EmbeddedEngine;
+import io.debezium.engine.DebeziumEngine;
 import io.debezium.heartbeat.Heartbeat;
 import io.debezium.jdbc.TemporalPrecisionMode;
 import io.debezium.junit.EqualityCheck;
@@ -633,6 +635,7 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE);
         start(PostgresConnector.class, configBuilder.build());
         assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted();
 
         // check the records from the snapshot
         assertRecordsFromSnapshot(2, 1, 1);
@@ -647,6 +650,7 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
         // start the connector back up and check that a new snapshot has been performed
         start(PostgresConnector.class, configBuilder.with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE).build());
         assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted();
 
         assertRecordsFromSnapshot(4, 1, 2, 1, 2);
 
@@ -824,6 +828,48 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
 
         String sourceTable = ((Struct) record.value()).getStruct("source").getString("table");
         assertThat(sourceTable).isEqualTo("b");
+    }
+
+    @Test
+    @FixFor("DBZ-2118")
+    public void shouldCloseTxAfterTypeQuery() throws Exception {
+        String setupStmt = SETUP_TABLES_STMT;
+
+        TestHelper.execute(setupStmt);
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL.getValue())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                .with(PostgresConnectorConfig.SCHEMA_WHITELIST, "s1")
+                .with(PostgresConnectorConfig.TABLE_WHITELIST, "s1.b")
+                .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true);
+
+        start(PostgresConnector.class, configBuilder.build());
+        assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted();
+
+        TestHelper.execute("CREATE TABLE s1.b (pk SERIAL, aa isbn, PRIMARY KEY(pk));", "INSERT INTO s1.b (aa) VALUES ('978-0-393-04002-9')");
+        SourceRecords actualRecords = consumeRecordsByTopic(1);
+
+        List<SourceRecord> records = actualRecords.recordsForTopic(topicName("s1.b"));
+        assertThat(records.size()).isEqualTo(1);
+
+        SourceRecord record = records.get(0);
+        VerifyRecord.isValidInsert(record, PK_FIELD, 1);
+        final String isbn = new String(((Struct) record.value()).getStruct("after").getBytes("aa"));
+        Assertions.assertThat(isbn).isEqualTo("0-393-04002-X");
+
+        try (final PostgresConnection connection = TestHelper.create()) {
+            try {
+                Awaitility.await()
+                        .atMost(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS)
+                        .until(() -> getActiveTransactions(connection).size() == 1);
+            }
+            catch (ConditionTimeoutException e) {
+            }
+            assertThat(getActiveTransactions(connection)).hasSize(1);
+        }
+        stopConnector();
+        assertConnectorNotRunning();
     }
 
     @Test
@@ -1147,6 +1193,18 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                         fail("No replication slot info available");
                     }
                     return null;
+                });
+    }
+
+    private List<String> getActiveTransactions(PostgresConnection connection) throws SQLException {
+        return connection.queryAndMap(
+                "SELECT query FROM pg_stat_activity WHERE backend_xmin IS NOT NULL ORDER BY age(backend_xmin) DESC;",
+                rs -> {
+                    final List<String> ret = new ArrayList<>();
+                    while (rs.next()) {
+                        ret.add(rs.getString(1));
+                    }
+                    return ret;
                 });
     }
 
@@ -1624,6 +1682,126 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
             CloudEventsConverterTest.shouldConvertToCloudEventsInJsonWithDataAsAvro(record, true);
             CloudEventsConverterTest.shouldConvertToCloudEventsInAvro(record, "postgresql", "test_server", true);
         }
+
+        stopConnector();
+    }
+
+    @Test
+    @FixFor("DBZ-1813")
+    @SkipWhenDecoderPluginNameIsNot(value = SkipWhenDecoderPluginNameIsNot.DecoderPluginName.PGOUTPUT, reason = "Publication configuration only valid for PGOUTPUT decoder")
+    public void shouldConfigureSubscriptionsForAllTablesByDefault() throws Exception {
+        // This captures all logged messages, allowing us to verify log message was written.
+        final LogInterceptor logInterceptor = new LogInterceptor();
+
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication("cdc");
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.PUBLICATION_NAME, "cdc");
+
+        start(PostgresConnector.class, configBuilder.build());
+        assertConnectorIsRunning();
+        waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
+
+        stopConnector(value -> assertTrue(
+                logInterceptor.containsMessage("Creating Publication with statement 'CREATE PUBLICATION cdc FOR ALL TABLES;'") &&
+                        logInterceptor.containsMessage("Creating new publication 'cdc' for plugin 'PGOUTPUT'")));
+        assertTrue(TestHelper.publicationExists("cdc"));
+    }
+
+    @Test
+    @FixFor("DBZ-1813")
+    @SkipWhenDecoderPluginNameIsNot(value = SkipWhenDecoderPluginNameIsNot.DecoderPluginName.PGOUTPUT, reason = "Publication configuration only valid for PGOUTPUT decoder")
+    public void shouldConfigureSubscriptionsFromTableFilters() throws Exception {
+        // This captures all logged messages, allowing us to verify log message was written.
+        final LogInterceptor logInterceptor = new LogInterceptor();
+
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication("cdc");
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+        TestHelper.execute(SETUP_TABLES_STMT);
+
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.PUBLICATION_NAME, "cdc")
+                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.numeric_table,public.text_table,s1.a,s2.a")
+                .with(PostgresConnectorConfig.PUBLICATION_AUTOCREATE_MODE, PostgresConnectorConfig.AutoCreateMode.FILTERED.getValue());
+
+        start(PostgresConnector.class, configBuilder.build());
+        assertConnectorIsRunning();
+        waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
+
+        // check the records from the snapshot
+        assertRecordsFromSnapshot(2, 1, 1);
+
+        // insert 2 new records
+        TestHelper.execute(INSERT_STMT);
+        assertRecordsAfterInsert(2, 2, 2);
+
+        stopConnector(value -> {
+            assertTrue(logInterceptor.containsMessage(
+                    "Creating Publication with statement 'CREATE PUBLICATION cdc FOR TABLE \"public\".\"numeric_table\", \"public\".\"text_table\", \"s1\".\"a\", \"s2\".\"a\";'"));
+            assertTrue(logInterceptor.containsMessage("Creating new publication 'cdc' for plugin 'PGOUTPUT'"));
+        });
+
+        assertTrue(TestHelper.publicationExists("cdc"));
+    }
+
+    @Test
+    @FixFor("DBZ-1813")
+    @SkipWhenDecoderPluginNameIsNot(value = SkipWhenDecoderPluginNameIsNot.DecoderPluginName.PGOUTPUT, reason = "Publication configuration only valid for PGOUTPUT decoder")
+    public void shouldThrowWhenAutocreationIsDisabled() throws Exception {
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication("cdc");
+
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SLOT_NAME, "cdc")
+                .with(PostgresConnectorConfig.PUBLICATION_AUTOCREATE_MODE, PostgresConnectorConfig.AutoCreateMode.DISABLED.getValue());
+
+        DebeziumEngine.CompletionCallback cb = (boolean success, String message, Throwable error) -> {
+            assertEquals(error.getClass(), ConnectException.class);
+            assertEquals(error.getMessage(), "Publication autocreation is disabled, please create one and restart the connector.");
+        };
+
+        start(PostgresConnector.class, configBuilder.build(), cb);
+        waitForAvailableRecords(100, TimeUnit.MILLISECONDS);
+        stopConnector();
+
+        assertFalse(TestHelper.publicationExists("cdc"));
+    }
+
+    @Test
+    @FixFor("DBZ-1813")
+    @SkipWhenDecoderPluginNameIsNot(value = SkipWhenDecoderPluginNameIsNot.DecoderPluginName.PGOUTPUT, reason = "Publication configuration only valid for PGOUTPUT decoder")
+    public void shouldProduceMessagesOnlyForConfiguredTables() throws Exception {
+        TestHelper.dropAllSchemas();
+        TestHelper.dropPublication("cdc");
+        TestHelper.executeDDL("postgres_create_tables.ddl");
+        TestHelper.execute(SETUP_TABLES_STMT);
+
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.PUBLICATION_NAME, "cdc")
+                .with(PostgresConnectorConfig.TABLE_WHITELIST, "s2.a")
+                .with(PostgresConnectorConfig.PUBLICATION_AUTOCREATE_MODE, PostgresConnectorConfig.AutoCreateMode.FILTERED.getValue());
+
+        start(PostgresConnector.class, configBuilder.build());
+        assertConnectorIsRunning();
+        waitForSnapshotToBeCompleted();
+
+        // snapshot record
+        consumeRecordsByTopic(1);
+
+        TestHelper.execute(INSERT_STMT);
+        SourceRecords actualRecords = consumeRecordsByTopic(1);
+        assertThat(actualRecords.topics()).hasSize(1);
+
+        // there should be no record for s1.a
+        List<SourceRecord> s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        List<SourceRecord> s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+        assertThat(s1recs).isNull();
+        assertThat(s2recs).hasSize(1);
+
+        VerifyRecord.isValidInsert(s2recs.get(0), PK_FIELD, 2);
 
         stopConnector();
     }

@@ -70,6 +70,7 @@ pipeline {
                     oc new-project ${OCP_PROJECT_MYSQL}
                     oc new-project ${OCP_PROJECT_POSTGRESQL}
                     oc new-project ${OCP_PROJECT_SQLSERVER}
+                    oc new-project ${OCP_PROJECT_MONGO}
                     '''
                     sh '''
                     set -x
@@ -135,6 +136,8 @@ pipeline {
                     -Dtest.ocp.project.debezium="${OCP_PROJECT_DEBEZIUM}" \\
                     -Dtest.ocp.project.mysql="${OCP_PROJECT_MYSQL}"  \\
                     -Dtest.ocp.project.postgresql="${OCP_PROJECT_POSTGRESQL}" \\
+                    -Dtest.ocp.project.sqlserver="${OCP_PROJECT_SQLSERVER}"  \\
+                    -Dtest.ocp.project.mongo="${OCP_PROJECT_MONGO}" \\
                     -Dimage.fullname="${DBZ_CONNECT_IMAGE}" \\
                     -Dtest.ocp.pull.secret.paths="${SECRET_PATH}"
                     '''

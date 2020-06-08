@@ -25,6 +25,7 @@ import org.fest.assertions.Assertions;
 import org.junit.Before;
 import org.junit.Test;
 
+import io.debezium.config.CommonConnectorConfig.BinaryHandlingMode;
 import io.debezium.connector.mysql.antlr.MySqlAntlrDdlParser;
 import io.debezium.doc.FixFor;
 import io.debezium.jdbc.JdbcValueConverters;
@@ -75,6 +76,56 @@ public class MySqlAntlrDdlParserTest {
         assertThat(table.columnWithName("val1").length()).isEqualTo(-1);
         assertThat(table.columnWithName("val2").jdbcType()).isEqualTo(Types.CHAR);
         assertThat(table.columnWithName("val2").length()).isEqualTo(5);
+    }
+
+    @Test
+    @FixFor("DBZ-2140")
+    public void shouldUpdateSchemaForRemovedDefaultValue() {
+        String ddl = "CREATE TABLE mytable (id INT PRIMARY KEY, val1 INT);"
+                + "ALTER TABLE mytable ADD COLUMN last_val INT DEFAULT 5;";
+        parser.parse(ddl, tables);
+        assertThat(((MySqlAntlrDdlParser) parser).getParsingExceptionsFromWalker().size()).isEqualTo(0);
+        assertThat(tables.size()).isEqualTo(1);
+
+        parser.parse("ALTER TABLE mytable ALTER COLUMN last_val DROP DEFAULT;", tables);
+        assertThat(((MySqlAntlrDdlParser) parser).getParsingExceptionsFromWalker().size()).isEqualTo(0);
+        assertThat(tables.size()).isEqualTo(1);
+
+        Table table = tables.forTable(null, null, "mytable");
+        assertThat(table.columns()).hasSize(3);
+        assertThat(table.columnWithName("id")).isNotNull();
+        assertThat(table.columnWithName("val1")).isNotNull();
+        assertThat(table.columnWithName("last_val")).isNotNull();
+        assertThat(table.columnWithName("last_val").defaultValue()).isNull();
+
+        parser.parse("ALTER TABLE mytable CHANGE COLUMN last_val last_val INT NOT NULL;", tables);
+        assertThat(((MySqlAntlrDdlParser) parser).getParsingExceptionsFromWalker().size()).isEqualTo(0);
+        assertThat(tables.size()).isEqualTo(1);
+
+        table = tables.forTable(null, null, "mytable");
+        assertThat(table.columnWithName("last_val")).isNotNull();
+        assertThat(table.columnWithName("last_val").hasDefaultValue()).isFalse();
+    }
+
+    @Test
+    @FixFor("DBZ-2061")
+    public void shouldUpdateSchemaForChangedDefaultValue() {
+        String ddl = "CREATE TABLE mytable (id INT PRIMARY KEY, val1 INT);"
+                + "ALTER TABLE mytable ADD COLUMN last_val INT DEFAULT 5;";
+        parser.parse(ddl, tables);
+        assertThat(((MySqlAntlrDdlParser) parser).getParsingExceptionsFromWalker().size()).isEqualTo(0);
+        assertThat(tables.size()).isEqualTo(1);
+
+        parser.parse("ALTER TABLE mytable ALTER COLUMN last_val SET DEFAULT 10;", tables);
+        assertThat(((MySqlAntlrDdlParser) parser).getParsingExceptionsFromWalker().size()).isEqualTo(0);
+        assertThat(tables.size()).isEqualTo(1);
+
+        Table table = tables.forTable(null, null, "mytable");
+        assertThat(table.columns()).hasSize(3);
+        assertThat(table.columnWithName("id")).isNotNull();
+        assertThat(table.columnWithName("val1")).isNotNull();
+        assertThat(table.columnWithName("last_val")).isNotNull();
+        assertThat(table.columnWithName("last_val").defaultValue()).isEqualTo(10);
     }
 
     @Test
@@ -2511,7 +2562,8 @@ public class MySqlAntlrDdlParserTest {
                     new MySqlValueConverters(
                             JdbcValueConverters.DecimalMode.DOUBLE,
                             TemporalPrecisionMode.ADAPTIVE_TIME_MICROSECONDS,
-                            JdbcValueConverters.BigIntUnsignedMode.PRECISE),
+                            JdbcValueConverters.BigIntUnsignedMode.PRECISE,
+                            BinaryHandlingMode.BYTES),
                     tableFilter);
             this.ddlChanges = changesListener;
         }

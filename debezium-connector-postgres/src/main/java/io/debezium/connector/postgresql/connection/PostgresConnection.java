@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Duration;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -64,13 +65,26 @@ public class PostgresConnection extends JdbcConnection {
 
     /**
      * Creates a Postgres connection using the supplied configuration.
+     * If necessary this connection is able to resolve data type mappings.
+     * Usually only one such connection per connector is needed.
+     *
+     * @param config {@link Configuration} instance, may not be null.
+     * @param provideTypeRegistry {@code true} if type registry should be created
+     */
+    public PostgresConnection(Configuration config, boolean provideTypeRegistry) {
+        super(config, FACTORY, PostgresConnection::validateServerVersion, PostgresConnection::defaultSettings);
+        this.typeRegistry = provideTypeRegistry ? new TypeRegistry(this) : null;
+        databaseCharset = determineDatabaseCharset();
+    }
+
+    /**
+     * Creates a Postgres connection using the supplied configuration.
+     * The connector is the regular one without datatype resolution capabilities.
      *
      * @param config {@link Configuration} instance, may not be null.
      */
     public PostgresConnection(Configuration config) {
-        super(config, FACTORY, PostgresConnection::validateServerVersion, PostgresConnection::defaultSettings);
-        this.typeRegistry = new TypeRegistry(this);
-        databaseCharset = determineDatabaseCharset();
+        this(config, false);
     }
 
     /**
@@ -275,25 +289,39 @@ public class PostgresConnection extends JdbcConnection {
      * @return {@code true} if the slot was dropped, {@code false} otherwise
      */
     public boolean dropReplicationSlot(String slotName) {
-        try {
-            execute("select pg_drop_replication_slot('" + slotName + "')");
-            return true;
+        final int ATTEMPTS = 3;
+        for (int i = 0; i < ATTEMPTS; i++) {
+            try {
+                execute("select pg_drop_replication_slot('" + slotName + "')");
+                return true;
+            }
+            catch (SQLException e) {
+                // slot is active
+                if (PSQLState.OBJECT_IN_USE.getState().equals(e.getSQLState())) {
+                    if (i < ATTEMPTS - 1) {
+                        LOGGER.debug("Cannot drop replication slot '{}' because it's still in use", slotName);
+                    }
+                    else {
+                        LOGGER.warn("Cannot drop replication slot '{}' because it's still in use", slotName);
+                        return false;
+                    }
+                }
+                else if (PSQLState.UNDEFINED_OBJECT.getState().equals(e.getSQLState())) {
+                    LOGGER.debug("Replication slot {} has already been dropped", slotName);
+                    return false;
+                }
+                else {
+                    LOGGER.error("Unexpected error while attempting to drop replication slot", e);
+                    return false;
+                }
+            }
+            try {
+                Metronome.parker(Duration.ofSeconds(1), Clock.system()).pause();
+            }
+            catch (InterruptedException e) {
+            }
         }
-        catch (SQLException e) {
-            // slot is active
-            if (PSQLState.OBJECT_IN_USE.getState().equals(e.getSQLState())) {
-                LOGGER.warn("Cannot drop replication slot '{}' because it's still in use", slotName);
-                return false;
-            }
-            else if (PSQLState.UNDEFINED_OBJECT.getState().equals(e.getSQLState())) {
-                LOGGER.debug("Replication slot {} has already been dropped", slotName);
-                return false;
-            }
-            else {
-                LOGGER.error("Unexpected error while attempting to drop replication slot", e);
-            }
-            return false;
-        }
+        return false;
     }
 
     /**
@@ -483,6 +511,7 @@ public class PostgresConnection extends JdbcConnection {
     }
 
     public TypeRegistry getTypeRegistry() {
+        Objects.requireNonNull(typeRegistry, "Connection does not provide type registry");
         return typeRegistry;
     }
 }
