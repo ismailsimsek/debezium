@@ -118,9 +118,6 @@ public abstract class AbstractS3ChangeConsumer extends BaseChangeConsumer implem
         LocalDateTime batchTime = LocalDateTime.now();
         for (ChangeEvent<Object, Object> record : records) {
 
-            LOGGER.error(record.destination());
-            LOGGER.error(record.key().toString());
-            LOGGER.error(record.value().toString());
             final PutObjectRequest putRecord = PutObjectRequest.builder()
                     .bucket(bucket)
                     .key(objectKeyMapper.map(record.destination(), batchTime, UUID.randomUUID().toString()))

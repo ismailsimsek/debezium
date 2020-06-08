@@ -15,6 +15,15 @@
 
 package io.debezium.server.s3.batchwriter;
 
+import com.google.common.io.Files;
+import io.debezium.server.s3.objectkeymapper.ObjectKeyMapper;
+import org.apache.commons.io.FileUtils;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -22,24 +31,13 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.commons.io.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.google.common.io.Files;
-
-import io.debezium.engine.ChangeEvent;
-import io.debezium.server.s3.objectkeymapper.ObjectKeyMapper;
-
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
 public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
     static final ConcurrentHashMap<String, BatchFile> files = new ConcurrentHashMap<>();
     static final File TEMPDIR = Files.createTempDir();
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonBatchRecordWriter.class);
     private static final LocalDateTime batchTime = LocalDateTime.now();
-    private final static int MAX_ROWS = 2;
+    @ConfigProperty(name = "debezium.sink.s3.s3batch.maxeventsperbatch")
+    private static int MAX_ROWS;
     private final S3Client s3Client;
     private final String bucket;
     private final ObjectKeyMapper mapper;
@@ -51,7 +49,7 @@ public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
     }
 
     @Override
-    public void append(String destination, ChangeEvent<Object, Object> record) throws IOException {
+    public void append(String destination, String eventValue) throws IOException {
 
         if (!files.containsKey(destination)) {
             File newBatchFileName = TEMPDIR.toPath().resolve(mapper.map(destination, batchTime, 0)).toFile();
@@ -59,7 +57,7 @@ public class JsonBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
             files.put(destination, new BatchFile(newBatchFileName));
         }
         BatchFile afile = files.get(destination);
-        afile.append((String) record.value());
+        afile.append(eventValue);
         // process batch
         if (afile.getNumRecords() > MAX_ROWS) {
             this.uploadBatchFile(afile.getAbsolutePath());
