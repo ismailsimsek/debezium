@@ -125,6 +125,9 @@
         <version.surefire.plugin>2.22.2</version.surefire.plugin>
         <version.failsafe.plugin>${version.surefire.plugin}</version.failsafe.plugin>
         <version.checkstyle>8.32</version.checkstyle>
+        <version.revapi.plugin>0.11.5</version.revapi.plugin>
+        <version.revapi-java.plugin>0.21.0</version.revapi-java.plugin>
+        <version.build-helper.plugin>1.9.1</version.build-helper.plugin>
 
         <!-- Dockerfiles -->
         <docker.maintainer>Debezium community</docker.maintainer>
@@ -156,11 +159,15 @@
 
         <!-- Needed for pre jdk 9 -->
         <useSystemClassLoader>true</useSystemClassLoader>
+
+        <!-- Skip the API checks by default. Let the modules opt in. -->
+        <revapi.skip>true</revapi.skip>
     </properties>
 
     <modules>
         <module>support/checkstyle</module>
         <module>support/ide-configs</module>
+        <module>support/revapi</module>
         <module>debezium-api</module>
         <module>debezium-ddl-parser</module>
         <module>debezium-assembly-descriptors</module>
@@ -648,6 +655,28 @@
                         <removeUnused>true</removeUnused>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.revapi</groupId>
+                    <artifactId>revapi-maven-plugin</artifactId>
+                    <version>${version.revapi.plugin}</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>io.debezium</groupId>
+                            <artifactId>debezium-revapi</artifactId>
+                            <version>${project.version}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.revapi</groupId>
+                            <artifactId>revapi-java</artifactId>
+                            <version>${version.revapi-java.plugin}</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>build-helper-maven-plugin</artifactId>
+                    <version>${version.build-helper.plugin}</version>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
@@ -828,6 +857,56 @@
                         <phase>verify</phase>
                         <goals>
                             <goal>checkstyle</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <!-- Serves as support for configuring Revapi -->
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>parse-version</id>
+                        <goals>
+                            <!-- This defines the ${parsedVersion.*} properties used in the Revapi config. -->
+                            <goal>parse-version</goal>
+                        </goals>
+                        <phase>validate</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.revapi</groupId>
+                <artifactId>revapi-maven-plugin</artifactId>
+                <configuration>
+                    <failOnMissingConfigurationFiles>false</failOnMissingConfigurationFiles>
+                    <!-- Consider changes from the latest .Final version, not from the latest non-snapshot. -->
+                    <versionFormat>\d+\.\d+\.\d+\.Final</versionFormat>
+                    <ignoreSuggestionsFormat>xml</ignoreSuggestionsFormat>
+                    <analysisConfigurationFiles>
+                        <configurationFile>
+                            <!-- common API checking configuration -->
+                            <resource>revapi/revapi-configuration.xml</resource>
+                        </configurationFile>
+                        <configurationFile>
+                            <!-- API changes recorded in the support/revapi module -->
+                            <resource>revapi/debezium-api-changes.xml</resource>
+                            <roots>
+                                <!--
+                                    The XML file has "<analysisConfiguration>" root node, underneath which
+                                    there are nodes named after each version.
+                                    This way we only need a single file for all releases of Debezium.
+                                -->
+                                <root>analysisConfiguration/version-${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}</root>
+                            </roots>
+                        </configurationFile>
+                    </analysisConfigurationFiles>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
                         </goals>
                     </execution>
                 </executions>
