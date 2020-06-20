@@ -63,6 +63,12 @@ public class MongoDbEventMetadataProvider implements EventMetadataProvider {
         if (source == null) {
             return null;
         }
+        if (sourceInfo.schema().field(SourceInfo.SESSION_TXN_ID) != null) {
+            final String sessionTxnId = sourceInfo.getString(SourceInfo.SESSION_TXN_ID);
+            if (sessionTxnId != null) {
+                return sessionTxnId;
+            }
+        }
         final Long operationId = sourceInfo.getInt64(SourceInfo.OPERATION_ID);
         if (operationId == null) {
             return null;

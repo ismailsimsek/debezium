@@ -8,6 +8,7 @@ package io.debezium.connector.mongodb;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -217,6 +218,21 @@ public class MongoUtil {
             }
         }
         return null;
+    }
+
+    /**
+     * Helper function to extract the session transaction-id from an oplog event.
+     *
+     * @param oplogEvent the oplog event
+     * @return the session transaction id from the oplog event
+     */
+    public static String getOplogSessionTransactionId(Document oplogEvent) {
+        if (!oplogEvent.containsKey("txnNumber")) {
+            return null;
+        }
+        final String lsid = oplogEvent.get("lsid", Document.class).get("id", UUID.class).toString();
+        final Long txnNumber = oplogEvent.getLong("txnNumber");
+        return lsid + ":" + txnNumber;
     }
 
     /**

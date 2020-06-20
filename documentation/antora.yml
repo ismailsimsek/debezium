@@ -6,7 +6,7 @@ nav:
 
 asciidoc:
   attributes:
-    debezium-version: '1.2.0.CR1'
+    debezium-version: '1.2.0.CR2'
     debezium-dev-version: '1.2'
     debezium-kafka-version: '2.5.0'
     debezium-docker-label: '1.1'
@@ -15,7 +15,7 @@ asciidoc:
     modules: '../../modules'
     mysql-version: '8.0'
     strimzi-version: '0.13.0'
-    apicurio-version: '1.1.2.Final'
+    apicurio-version: '1.2.2.Final'
     community: true
     link-avro-serialization: 'configuration/avro.adoc'
     link-cassandra-connector: 'connectors/cassandra.adoc'
@@ -45,6 +45,6 @@ asciidoc:
     link-oracle-plugin-snapshot: 'https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=io.debezium&a=debezium-connector-oracle&v=LATEST&c=plugin&e=tar.gz'
     link-db2-plugin-snapshot: 'https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=io.debezium&a=debezium-connector-db2&v=LATEST&c=plugin&e=tar.gz'
     link-cassandra-plugin-snapshot: 'https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=io.debezium&a=debezium-connector-cassandra&v=LATEST&c=plugin&e=tar.gz'
-    link-server-snapshot: 'https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=io.debezium&a=debezium-server&v=LATEST&c=distribution&e=tar.gz'
+    link-server-snapshot: 'https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=io.debezium&a=debezium-server-dist&v=LATEST&c=distribution&e=tar.gz'
     link-kafka-docs: 'https://kafka.apache.org/documentation'
     link-java7-standard-names: 'https://docs.oracle.com/javase/7/docs/technotes/guides/security/StandardNames.html#MessageDigest'

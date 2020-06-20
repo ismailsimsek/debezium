@@ -139,7 +139,8 @@ pipeline {
                     -Dtest.ocp.project.sqlserver="${OCP_PROJECT_SQLSERVER}"  \\
                     -Dtest.ocp.project.mongo="${OCP_PROJECT_MONGO}" \\
                     -Dimage.fullname="${DBZ_CONNECT_IMAGE}" \\
-                    -Dtest.ocp.pull.secret.paths="${SECRET_PATH}"
+                    -Dtest.ocp.pull.secret.paths="${SECRET_PATH}" \\
+                    -Dtest.wait.scale="${TEST_WAIT_SCALE}"
                     '''
                 }
             }
@@ -160,6 +161,8 @@ OpenShift interoperability test run ${BUILD_URL} finished with result: ${current
             oc delete project ${OCP_PROJECT_DEBEZIUM}
             oc delete project ${OCP_PROJECT_MYSQL}
             oc delete project ${OCP_PROJECT_POSTGRESQL}
+            oc delete project ${OCP_PROJECT_SQLSERVER}
+            oc delete project ${OCP_PROJECT_MONGO}
             '''
         }
     }

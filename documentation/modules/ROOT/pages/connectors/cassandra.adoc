@@ -37,7 +37,7 @@ Cassandra is different from the other {prodname} connectors since it is not impl
 ====
 The following features are currently not supported by the Cassandra connector. Changes resulted from any of these features are ignored:
 
-* TTLs
+* TTL on collection-type columns
 * Range deletes
 * Static columns
 * Triggers
