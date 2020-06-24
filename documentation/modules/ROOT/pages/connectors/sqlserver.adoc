@@ -28,7 +28,6 @@ All of the events for each table are recorded in a separate Kafka topic, where t
 
 The functionality of the connector is based upon https://docs.microsoft.com/en-us/sql/relational-databases/track-changes/about-change-data-capture-sql-server?view=sql-server-2017[change data capture] feature provided by SQL Server Standard (https://blogs.msdn.microsoft.com/sqlreleaseservices/sql-server-2016-service-pack-1-sp1-released/[since SQL Server 2016 SP1]) or Enterprise edition.
 Using this mechanism a SQL Server capture process monitors all databases and tables the user is interested in and stores the changes into specifically created _CDC_ tables that have stored procedure facade.
-The connector has been tested with SQL Server 2017, but community members have reportedly used it successfully with earlier versions up to 2014, too (as long as the CDC feature is provided).
 
 The database operator must https://docs.microsoft.com/en-us/sql/relational-databases/track-changes/enable-and-disable-change-data-capture-sql-server?view=sql-server-2017[enable] _CDC_ for the table(s) that should be captured by the connector.
 The connector then produces a _change event_ for every row-level insert, update, and delete operation that was published via the _CDC API_, recording all the change events for each table in a separate Kafka topic.
@@ -49,7 +48,8 @@ This includes snapshots: if the snapshot was not completed when the connector is
 == Setting up SQL Server
 
 Before using the SQL Server connector to monitor the changes committed on SQL Server, first enable _CDC_ on a monitored database.
-Please bear in mind that _CDC_ cannot be enabled for `master` database.
+Please bear in mind that _CDC_ cannot be enabled for the `master` database.
+
 [source,sql]
 ----
 -- ====
@@ -61,7 +61,8 @@ EXEC sys.sp_cdc_enable_db
 GO
 ----
 
-Then enable _CDC_ for each table that you plan to monitor
+Then enable _CDC_ for each table that you plan to monitor.
+
 [source,sql]
 ----
 -- ====
@@ -95,14 +96,14 @@ If the result is empty then please make sure that the user has privileges to acc
 === SQL Server on Azure
 
 The SQL Server plug-in has not been tested with SQL Server on Azure.
-We welcome any feedback from a user to try the plug-in with database in managed environment.
+We welcome any feedback from a user to try the plug-in with database in managed environments.
 
 ifdef::community[]
 [[sqlserver-always-on-replica]]
 === SQL Server Always On
 
 The SQL Server plug-in can capture changes from an Always On read-only replica.
-Few pre-requisities are necessary to be fulfilled
+A few pre-requisities are necessary to be fulfilled:
 
 * Change data capture is configured and enabled on the master node.
 SQL Server does not support CDC directly on replicas.
@@ -152,7 +153,7 @@ This ensures that the changes are replayed by {prodname} in the same order as we
 
 After a restart, the connector will resume from the offset (commit and change LSNs) where it left off before.
 
-The connector is able to detect whether the CDC is enabled or disabled for whitelisted source table during the runtime and modify its behavior.
+The connector is able to detect whether CDC is enabled or disabled for whitelisted source tables and adjust its behavior.
 
 [[sqlserver-topic-names]]
 === Topic names
@@ -166,6 +167,7 @@ For example, consider a SQL Server installation with an `inventory` database tha
 * `fulfillment.dbo.customers`
 * `fulfillment.dbo.orders`
 
+ifdef::community[]
 === Schema change topic
 
 [WARNING]
@@ -313,6 +315,7 @@ The schema change messages use as the key the name of the database to which the 
   }
 }
 ----
+endif::community[]
 
 === Events
 
@@ -728,7 +731,7 @@ To make this possible, the SQL Server connector always follows the _delete_ even
 {prodname} can generate events that represents tranaction metadata boundaries and enrich data messages.
 
 ==== Transaction boundaries
-{prodname} generates events for every transaction start and end.
+{prodname} generates events for every transaction `BEGIN` and `END`.
 Every event contains
 
 * `status` - `BEGIN` or `END`
@@ -736,7 +739,8 @@ Every event contains
 * `event_count` (for `END` events) - total number of events emmitted by the transaction
 * `data_collections` (for `END` events) - an array of pairs of `data_collection` and `event_count` that provides number of events emitted by changes originating from given data collection
 
-An example of messages looks like
+Following is an example of what a message looks like:
+
 [source,json,indent=0,subs="attributes"]
 ----
 {
@@ -766,14 +770,15 @@ An example of messages looks like
 The transaction events are written to the topic named `<database.server.name>.transaction`.
 
 ==== Data events enrichment
-When transaction metadata are enabled then data message `Envelope` is enriched with a new field `transaction`.
-This field provide information about every event in form of composite of fields
+When transaction metadata is enabled the data message `Envelope` is enriched with a new `transaction` field.
+This field provides information about every event in the form of a composite of fields:
 
 * `id` - string representation of unique transaction identifier
-* `total_order` - the absolute position the event amongst all events generated by the transaction
-* `data_collection_order` - the per-data collection position of the event amongst all events emitted by the transaction
+* `total_order` - the absolute position of the event among all events generated by the transaction
+* `data_collection_order` - the per-data collection position of the event among all events that were emitted by the transaction
 
-An example of messages looks like
+Following is an example of what a message looks like:
+
 [source,json,indent=0,subs="attributes"]
 ----
 {
@@ -1193,7 +1198,7 @@ Installing the SQL Server connector is a simple process whereby you only need to
 plugin.path=/kafka/connect
 ----
 
-NOTE: The above example assumes you have extracted the {prodname} SQL Server connector to the `/kafka/connect/{prodname}-connector-sqlserver` path.
+NOTE: The above example assumes you have extracted the {prodname} SQL Server connector to the `/kafka/connect/debezium-connector-sqlserver` path.
 
 [start=4]
 . Restart your Kafka Connect process. This ensures the new JARs are picked up.
@@ -1447,13 +1452,13 @@ The schema parameters `pass:[_]pass:[_]debezium.source.column.type`, `pass:[_]pa
 Useful to properly size corresponding columns in sink databases.
 Fully-qualified names for columns are of the form _schemaName_._tableName_._columnName_.
 
-|[[sqlserver-property-datatype-propagate-source-type]]<<sqlserver-property-datatype-propagate-source-type, `datatype.propagate.source.type`>>
+|[[sqlserver-property-datatype-propagate-source-type]]<<sqlserver-property-datatype-propagate-source-type,`datatype.propagate.source.type`>>
 |_n/a_
 |An optional comma-separated list of regular expressions that match the database-specific data type name of columns whose original type and length should be added as a parameter to the corresponding field schemas in the emitted change messages.
 The schema parameters `pass:[_]pass:[_]debezium.source.column.type`, `pass:[_]pass:[_]debezium.source.column.length` and `pass:[_]pass:[_]debezium.source.column.scale` will be used to propagate the original type name and length (for variable-width types), respectively.
 Useful to properly size corresponding columns in sink databases.
 Fully-qualified data type names are of the form _schemaName_._tableName_._typeName_.
-See {link-prefix}:{link-sqlserver-connector}#sqlserver-data-types[] for the list of SQL Server-specific data type names.
+See {link-prefix}:{link-sqlserver-connector}#sqlserver-data-types[SQL Server data types] for the list of SQL Server-specific data type names.
 
 |[[sqlserver-property-message-key-columns]]<<sqlserver-property-message-key-columns, `message.key.columns`>>
 |_empty string_
