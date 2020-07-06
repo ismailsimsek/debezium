@@ -71,7 +71,7 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
     ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
 
     @PostConstruct
-    void connect() throws URISyntaxException {
+    void connect() throws URISyntaxException, InterruptedException {
 
         if (customObjectKeyMapper.isResolvable()) {
             objectKeyMapper = customObjectKeyMapper.get();
@@ -102,7 +102,12 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
         }
         s3client = clientBuilder.build();
         LOGGER.info("Using default S3Client '{}'", s3client);
-        batchWriter = new JsonMapDbBatchRecordWriter(objectKeyMapper, s3client, bucket);
+        if (valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
+            batchWriter = new JsonMapDbBatchRecordWriter(objectKeyMapper, s3client, bucket);
+        }
+        else {
+            throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) value formats are {json,}!");
+        }
     }
 
     @PreDestroy
