@@ -1,3 +1,9 @@
+/*
+ * Copyright Debezium Authors.
+ *
+ * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
+ */
+
 package io.debezium.server.s3.batchwriter;
 
 import java.io.File;
@@ -7,11 +13,15 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Implementation of the consumer that delivers the messages into Amazon S3 destination.
+ *
+ * @author Ismail Simsek
+ */
 class BatchFile {
     private static final Logger LOGGER = LoggerFactory.getLogger(BatchFile.class);
     private int numRecords = 0;
