@@ -10,9 +10,9 @@ import java.io.IOException;
 
 public interface BatchRecordWriter {
 
-    void append(String destination, String eventValue);
+    void append(String destination, String eventValue) throws IOException;
 
-    void uploadBatch();
+    void uploadBatch() throws IOException;
 
     void close() throws IOException;
 }
