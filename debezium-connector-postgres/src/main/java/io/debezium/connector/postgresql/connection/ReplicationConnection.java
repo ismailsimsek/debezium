@@ -207,6 +207,13 @@ public interface ReplicationConnection extends AutoCloseable {
         Builder exportSnapshotOnCreate(final boolean exportSnapshot);
 
         /**
+         * Whether or not the snapshot is executed
+         * @param doSnapshot true if a snapshot is going to be executed, false if otherwise
+         * @return this instance
+         */
+        Builder doSnapshot(final boolean doSnapshot);
+
+        /**
          * Creates a new {@link ReplicationConnection} instance
          * @return a connection, never null
          */

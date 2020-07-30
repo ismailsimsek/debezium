@@ -31,6 +31,7 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
     private final int columnDataOffset;
     private boolean completed = false;
     private T currentChangePosition;
+    private T previousChangePosition;
 
     public ChangeTableResultSet(C changeTable, ResultSet resultSet, int columnDataOffset) {
         this.changeTable = changeTable;
@@ -46,12 +47,21 @@ public abstract class ChangeTableResultSet<C extends ChangeTable, T extends Comp
         return currentChangePosition;
     }
 
+    protected T getPreviousChangePosition() {
+        return previousChangePosition;
+    }
+
     public int getOperation() throws SQLException {
         return getOperation(resultSet);
     }
 
+    public boolean isCurrentPositionSmallerThanPreviousPosition() {
+        return (previousChangePosition != null) && previousChangePosition.compareTo(currentChangePosition) > 0;
+    }
+
     public boolean next() throws SQLException {
         completed = !resultSet.next();
+        previousChangePosition = currentChangePosition;
         currentChangePosition = getNextChangePosition(resultSet);
         if (completed) {
             LOGGER.trace("Closing result set of change tables for table {}", changeTable);

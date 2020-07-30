@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
@@ -1116,6 +1117,110 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
         assertThat(s2recs.size()).isEqualTo(1);
         VerifyRecord.isValidInsert(s1recs.get(0), PK_FIELD, 3);
         VerifyRecord.isValidInsert(s2recs.get(0), PK_FIELD, 3);
+    }
+
+    @Test
+    @FixFor("DBZ-2288")
+    @SkipWhenDecoderPluginNameIs(value = SkipWhenDecoderPluginNameIs.DecoderPluginName.PGOUTPUT, reason = "PgOutput needs publication for manually created slot")
+    public void exportedSnapshotShouldNotSkipRecordOfParallelTx() throws Exception {
+        TestHelper.dropDefaultReplicationSlot();
+        TestHelper.createDefaultReplicationSlot();
+
+        // Testing.Print.enable();
+        TestHelper.execute(SETUP_TABLES_STMT);
+        TestHelper.execute(INSERT_STMT);
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.EXPORTED.getValue())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .with(PostgresConnectorConfig.MAX_QUEUE_SIZE, 2)
+                .with(PostgresConnectorConfig.MAX_BATCH_SIZE, 1)
+                .build();
+        final PostgresConnection pgConnection = TestHelper.create();
+        pgConnection.setAutoCommit(false);
+        pgConnection.executeWithoutCommitting(INSERT_STMT);
+        final AtomicBoolean inserted = new AtomicBoolean();
+        start(PostgresConnector.class, config, loggingCompletion(), x -> false, x -> {
+            if (!inserted.get()) {
+                TestHelper.execute(INSERT_STMT);
+                try {
+                    pgConnection.commit();
+                }
+                catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+                inserted.set(true);
+            }
+        });
+        assertConnectorIsRunning();
+
+        // Consume records from the snapshot
+        SourceRecords actualRecords = consumeRecordsByTopic(4);
+
+        // Consume records from concurrent transactions
+        actualRecords = consumeRecordsByTopic(4);
+
+        List<SourceRecord> s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        List<SourceRecord> s2recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+        assertThat(s1recs.size()).isEqualTo(2);
+        assertThat(s2recs.size()).isEqualTo(2);
+
+        stopConnector();
+        TestHelper.dropDefaultReplicationSlot();
+    }
+
+    @Test
+    @FixFor("DBZ-2288")
+    @SkipWhenDecoderPluginNameIsNot(value = SkipWhenDecoderPluginNameIsNot.DecoderPluginName.PGOUTPUT, reason = "Publication not supported")
+    public void exportedSnapshotShouldNotSkipRecordOfParallelTxPgoutput() throws Exception {
+        TestHelper.dropDefaultReplicationSlot();
+        TestHelper.createDefaultReplicationSlot();
+        TestHelper.execute("CREATE PUBLICATION dbz_publication FOR ALL TABLES;");
+
+        // Testing.Print.enable();
+        TestHelper.execute(SETUP_TABLES_STMT);
+        TestHelper.execute(INSERT_STMT);
+
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.EXPORTED.getValue())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .with(PostgresConnectorConfig.MAX_QUEUE_SIZE, 2)
+                .with(PostgresConnectorConfig.MAX_BATCH_SIZE, 1)
+                .build();
+        final PostgresConnection pgConnection = TestHelper.create();
+        pgConnection.setAutoCommit(false);
+        pgConnection.executeWithoutCommitting(INSERT_STMT);
+        final AtomicBoolean inserted = new AtomicBoolean();
+        start(PostgresConnector.class, config, loggingCompletion(), x -> false, x -> {
+            if (!inserted.get()) {
+                TestHelper.execute(INSERT_STMT);
+                try {
+                    pgConnection.commit();
+                }
+                catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+                inserted.set(true);
+            }
+        });
+        assertConnectorIsRunning();
+
+        // Consume records from the snapshot
+        SourceRecords actualRecords = consumeRecordsByTopic(4);
+
+        // Consume records from concurrent transactions
+        actualRecords = consumeRecordsByTopic(4);
+
+        List<SourceRecord> s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        List<SourceRecord> s2recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+        assertThat(s1recs.size()).isEqualTo(2);
+        assertThat(s2recs.size()).isEqualTo(2);
+
+        stopConnector();
+        TestHelper.dropPublication();
+        TestHelper.dropDefaultReplicationSlot();
     }
 
     @Test

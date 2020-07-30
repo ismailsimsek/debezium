@@ -346,6 +346,12 @@ The fourth snapshot mode, *initial only*, will perform a database snapshot and t
 
 The fifth snapshot mode, *exported*, will perform a database snapshot based on the point in time when the replication slot was created.  This mode is an excellent way to perform a snapshot in a lock-free way.
 
+[WARNING]
+====
+It is strongly recommended to use *exported* mode as the *initial (only)* and *always* modes can lose few events while switching from snapshot to streaming mode when database is under heavy load.
+This is a known issue and the affected modes will be reworked to use *exported* mode under the hood (https://issues.redhat.com/browse/DBZ-2337[DBZ-2337]).
+====
+
 ifdef::community[]
 The final snapshot mode, *custom*, allows the user to inject their own implementation of the `io.debezium.connector.postgresql.spi.Snapshotter` interface via the `snapshot.custom.class` configuration property, with the class on the classpath of your Kafka Connect cluster (or included in the JAR if using the `EmbeddedEngine`). For more details, see the {link-prefix}:{link-postgresql-connector}#postgresql-custom-snapshot[Custom Snapshot] section.
 
@@ -626,7 +632,7 @@ https://www.postgresql.org/docs/current/static/sql-altertable.html#SQL-CREATETAB
 
 There are 4 possible values for `REPLICA IDENTITY`:
 
-* DEFAULT - `UPDATE` and `DELETE` events will only contain the previous values for the primary key columns of a table, in case of `UPDATE` only the primary columns with changed values are present
+* DEFAULT - `UPDATE` and `DELETE` events will only contain the previous values for the primary key columns of a table if a primary key column is specified. In case of `UPDATE` only the primary columns with changed values are present. If no primary keys columns are specified only `CREATE` events are emitted, `UPDATE` and `DELETE` events are considered empty `CREATE` statements and filtered
 * NOTHING - `UPDATE` and `DELETE` events will not contain any information about the previous value on any of the table columns
 * FULL - `UPDATE` and `DELETE` events will contain the previous values of all the table's columns
 * INDEX `index name` - `UPDATE` and `DELETE` events will contain the previous values of the columns contained in the index definition named `index name`, in case of `UPDATE` only the indexed columns with changed values are present
@@ -940,7 +946,7 @@ Please pay attention to the tables without PK, any delete messages from such tab
 To be able to process messages from tables without PK set REPLICA IDENTITY to FULL level.
 ====
 
-The PostgreSQL connector's events are designed to work with https://cwiki.apache.org/confluence/display/KAFKA/Log+Compaction[Kafka log compaction], which allows for the removal of some older messages as long as at least the most recent message for every key is kept. This allows Kafka to reclaim storage space while ensuring the topic contains a complete dataset and can be used for reloading key-based state.
+The PostgreSQL connector's events are designed to work with link:https://kafka.apache.org/documentation/#compaction[Kafka log compaction], which allows for the removal of some older messages as long as at least the most recent message for every key is kept. This allows Kafka to reclaim storage space while ensuring the topic contains a complete dataset and can be used for reloading key-based state.
 
 [[postgresql-tombstone-events]]
 When a row is deleted, the _delete_ event value listed above still works with log compaction, since Kafka can still remove all earlier messages with that same key. But only if the message value is `null` will Kafka know that it can remove _all messages_ with that same key. To make this possible, the PostgreSQL connector always follows the _delete_ event with a special _tombstone_ event that has the same key but `null` value.
@@ -2063,6 +2069,10 @@ See {link-prefix}:{link-postgresql-connector}#postgresql-toasted-values[Toasted 
 |When set to `true` {prodname} generates events with transaction boundaries and enriches data events envelope with transaction metadata.
 
 See {link-prefix}:{link-postgresql-connector}#postgresql-transaction-metadata[Transaction Metadata] for additional details.
+
+|[[postgresql-property-retriable-restart-connector-wait-ms]]<<postgresql-property-retriable-restart-connector-wait-ms, `retriable.restart{zwsp}.connector.wait.ms`>> +
+|10000 (10 seconds)
+|The number of milli-seconds to wait before restarting a connector after a retriable error occurs.
 
 |===
 

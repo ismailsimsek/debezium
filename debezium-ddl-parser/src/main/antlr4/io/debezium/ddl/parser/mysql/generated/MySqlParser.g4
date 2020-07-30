@@ -362,6 +362,8 @@ columnConstraint
     | COLLATE collationName                                         #collateColumnConstraint
     | (GENERATED ALWAYS)? AS '(' expression ')' (VIRTUAL | STORED)? #generatedColumnConstraint
     | SERIAL DEFAULT VALUE                                          #serialDefaultColumnConstraint
+    | (CONSTRAINT name=uid?)?
+      CHECK '(' expression ')'                                      #checkColumnConstraint
     ;
 
 tableConstraint
@@ -2058,13 +2060,14 @@ dataType
       lengthOneDimension? BINARY?                                   #nationalVaryingStringDataType
     | typeName=(
         TINYINT | SMALLINT | MEDIUMINT | INT | INTEGER | BIGINT
+        | MIDDLEINT | INT1 | INT2 | INT3 | INT4 | INT8
       )
       lengthOneDimension? (SIGNED | UNSIGNED)? ZEROFILL?            #dimensionDataType
     | typeName=REAL
       lengthTwoDimension? (SIGNED | UNSIGNED)? ZEROFILL?            #dimensionDataType
     | typeName=DOUBLE PRECISION?
           lengthTwoDimension? (SIGNED | UNSIGNED)? ZEROFILL?            #dimensionDataType
-    | typeName=(DECIMAL | DEC | FIXED | NUMERIC | FLOAT)
+    | typeName=(DECIMAL | DEC | FIXED | NUMERIC | FLOAT | FLOAT4 | FLOAT8)
       lengthTwoOptionalDimension? (SIGNED | UNSIGNED)? ZEROFILL?    #dimensionDataType
     | typeName=(
         DATE | TINYBLOB | BLOB | MEDIUMBLOB | LONGBLOB
@@ -2082,6 +2085,11 @@ dataType
         GEOMETRYCOLLECTION | GEOMCOLLECTION | LINESTRING | MULTILINESTRING
         | MULTIPOINT | MULTIPOLYGON | POINT | POLYGON | JSON | GEOMETRY
       )                                                             #spatialDataType
+    | typeName=LONG VARCHAR?
+      BINARY?
+      ((CHARACTER SET | CHARSET) charsetName)?
+      (COLLATE collationName)?                                      #longVarcharDataType    // LONG VARCHAR is the same as LONG
+    | LONG VARBINARY                                                #longVarbinaryDataType
     ;
 
 collectionOptions
@@ -2096,7 +2104,7 @@ convertedDataType
     : typeName=(BINARY| NCHAR) lengthOneDimension?
     | typeName=CHAR lengthOneDimension? ((CHARACTER SET | CHARSET) charsetName)?
     | typeName=(DATE | DATETIME | TIME | JSON | INT | INTEGER)
-    | typeName=DECIMAL lengthTwoDimension?
+    | typeName=DECIMAL lengthTwoOptionalDimension?
     | (SIGNED | UNSIGNED) INTEGER?
     ;
 
@@ -2574,5 +2582,5 @@ functionNameBase
     | VALIDATE_PASSWORD_STRENGTH | VERSION | VISIBLE
     | WAIT_UNTIL_SQL_THREAD_AFTER_GTIDS | WEEK | WEEKDAY
     | WEEKOFYEAR | WEIGHT_STRING | WITHIN | YEAR | YEARWEEK
-    | Y_FUNCTION | X_FUNCTION
+    | Y_FUNCTION | X_FUNCTION | JSON_VALID | JSON_SCHEMA_VALID
     ;

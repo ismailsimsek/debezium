@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -77,19 +78,20 @@ public class SqlServerConnection extends JdbcConnection {
     private final SourceTimestampMode sourceTimestampMode;
     private final Clock clock;
 
-    public static interface ResultSetExtractor<T> {
-        T apply(ResultSet rs) throws SQLException;
-    }
-
     private final BoundedConcurrentHashMap<Lsn, Instant> lsnToInstantCache;
+    private final SqlServerDefaultValueConverter defaultValueConverter;
 
     /**
      * Creates a new connection using the supplied configuration.
      *
      * @param config {@link Configuration} instance, may not be null.
      * @param sourceTimestampMode strategy for populating {@code source.ts_ms}.
+     * @param config
+     *            {@link Configuration} instance, may not be null.
+     * @param valueConverters
+     *            {@link SqlServerValueConverters} instance
      */
-    public SqlServerConnection(Configuration config, Clock clock, SourceTimestampMode sourceTimestampMode) {
+    public SqlServerConnection(Configuration config, Clock clock, SourceTimestampMode sourceTimestampMode, SqlServerValueConverters valueConverters) {
         super(config, FACTORY);
         lsnToInstantCache = new BoundedConcurrentHashMap<>(100);
         realDatabaseName = retrieveRealDatabaseName();
@@ -98,6 +100,7 @@ public class SqlServerConnection extends JdbcConnection {
         lsnToTimestamp = getLsnToTimestamp(supportsAtTimeZone);
         this.clock = clock;
         this.sourceTimestampMode = sourceTimestampMode;
+        defaultValueConverter = new SqlServerDefaultValueConverter(this::connection, valueConverters);
     }
 
     /**
@@ -278,18 +281,6 @@ public class SqlServerConnection extends JdbcConnection {
         return tableId.schema() + '_' + tableId.table();
     }
 
-    public <T> ResultSetMapper<T> singleResultMapper(ResultSetExtractor<T> extractor, String error) throws SQLException {
-        return (rs) -> {
-            if (rs.next()) {
-                final T ret = extractor.apply(rs);
-                if (!rs.next()) {
-                    return ret;
-                }
-            }
-            throw new IllegalStateException(error);
-        };
-    }
-
     public static class CdcEnabledTable {
         private final String tableId;
         private final String captureName;
@@ -458,7 +449,8 @@ public class SqlServerConnection extends JdbcConnection {
      */
     private boolean supportsAtTimeZone() {
         try {
-            return getSqlServerVersion() > 2016;
+            // Always expect the support if database is not standalone SQL Server, e.g. Azure
+            return getSqlServerVersion().orElse(Integer.MAX_VALUE) > 2016;
         }
         catch (Exception e) {
             LOGGER.error("Couldn't obtain database server version; assuming 'AT TIME ZONE' is not supported.", e);
@@ -466,18 +458,26 @@ public class SqlServerConnection extends JdbcConnection {
         }
     }
 
-    private int getSqlServerVersion() {
+    private Optional<Integer> getSqlServerVersion() {
         try {
             // As per https://www.mssqltips.com/sqlservertip/1140/how-to-tell-what-sql-server-version-you-are-running/
-            // Always beginning with 'Microsoft SQL Server NNNN'
+            // Always beginning with 'Microsoft SQL Server NNNN' but only in case SQL Server is standalone
             String version = queryAndMap(
                     SQL_SERVER_VERSION,
                     singleResultMapper(rs -> rs.getString(1), "Could not obtain SQL Server version"));
-
-            return Integer.valueOf(version.substring(21, 25));
+            if (!version.startsWith("Microsoft SQL Server ")) {
+                return Optional.empty();
+            }
+            return Optional.of(Integer.valueOf(version.substring(21, 25)));
         }
         catch (Exception e) {
             throw new RuntimeException("Couldn't obtain database server version", e);
         }
+    }
+
+    @Override
+    protected Optional<Object> getDefaultValue(Column column, String defaultValue) {
+        return defaultValueConverter
+                .parseDefaultValue(column, defaultValue);
     }
 }

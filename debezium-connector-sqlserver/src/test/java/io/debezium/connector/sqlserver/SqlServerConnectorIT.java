@@ -606,6 +606,56 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
     }
 
     @Test
+    @FixFor("DBZ-2329")
+    public void updatePrimaryKeyTwiceWithRestartInMiddleOfTx() throws Exception {
+
+        final Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
+                .with(SqlServerConnectorConfig.MAX_QUEUE_SIZE, 2)
+                .with(SqlServerConnectorConfig.MAX_BATCH_SIZE, 1)
+                .with(SqlServerConnectorConfig.TOMBSTONES_ON_DELETE, false)
+                .build();
+
+        // Testing.Print.enable();
+        // Wait for snapshot completion
+        start(SqlServerConnector.class, config, record -> {
+            final Struct envelope = (Struct) record.value();
+            boolean stop = envelope != null && "d".equals(envelope.get("op")) && (envelope.getStruct("before").getInt32("id") == 305);
+            return stop;
+        });
+        assertConnectorIsRunning();
+
+        consumeRecordsByTopic(1);
+
+        connection.setAutoCommit(false);
+
+        connection.execute("INSERT INTO tableb (id, colb) values (1,'1')");
+        connection.execute("INSERT INTO tableb (id, colb) values (2,'2')");
+        connection.execute("INSERT INTO tableb (id, colb) values (3,'3')");
+        connection.execute("INSERT INTO tableb (id, colb) values (4,'4')");
+        connection.execute("INSERT INTO tableb (id, colb) values (5,'5')");
+        consumeRecordsByTopic(5);
+
+        connection.execute("UPDATE tableb set id = colb + 300");
+        connection.execute("UPDATE tableb set id = colb + 300");
+
+        final SourceRecords records1 = consumeRecordsByTopic(14);
+
+        stopConnector();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+        final SourceRecords records2 = consumeRecordsByTopic(6);
+
+        final List<SourceRecord> tableB = records1.recordsForTopic("server1.dbo.tableb");
+        tableB.addAll(records2.recordsForTopic("server1.dbo.tableb"));
+
+        Assertions.assertThat(tableB).hasSize(20);
+
+        stopConnector();
+    }
+
+    @Test
     public void streamChangesWhileStopped() throws Exception {
         final int RECORDS_PER_TABLE = 5;
         final int TABLES = 2;
@@ -1361,6 +1411,54 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
     }
 
     @Test
+    @FixFor("DBZ-1491")
+    public void shouldCaptureTableSchema() throws SQLException, InterruptedException {
+        connection.execute(
+                "CREATE TABLE table_schema_test (key_cola int not null,"
+                        + "key_colb varchar(10) not null,"
+                        + "cola int not null,"
+                        + "colb datetimeoffset not null default ('2019-01-01 12:34:56.1234567+04:00'),"
+                        + "colc varchar(20) default ('default_value'),"
+                        + "cold float,"
+                        + "primary key(key_cola, key_colb))");
+        TestHelper.enableTableCdc(connection, "table_schema_test");
+
+        final Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.SCHEMA_ONLY)
+                .build();
+
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+        TestHelper.waitForSnapshotToBeCompleted();
+
+        connection.execute(
+                "INSERT INTO table_schema_test (key_cola, key_colb, cola, colb, colc, cold) VALUES(1, 'a', 100, '2019-01-01 10:20:39.1234567 +02:00', 'some_value', 100.20)");
+
+        List<SourceRecord> records = consumeRecordsByTopic(1).recordsForTopic("server1.dbo.table_schema_test");
+        assertThat(records).hasSize(1);
+        SourceRecordAssert.assertThat(records.get(0))
+                .keySchemaIsEqualTo(SchemaBuilder.struct()
+                        .name("server1.dbo.table_schema_test.Key")
+                        .field("key_cola", Schema.INT32_SCHEMA)
+                        .field("key_colb", Schema.STRING_SCHEMA)
+                        .build())
+                .valueAfterFieldSchemaIsEqualTo(SchemaBuilder.struct()
+                        .optional()
+                        .name("server1.dbo.table_schema_test.Value")
+                        .field("key_cola", Schema.INT32_SCHEMA)
+                        .field("key_colb", Schema.STRING_SCHEMA)
+                        .field("cola", Schema.INT32_SCHEMA)
+                        .field("colb",
+                                SchemaBuilder.string().name("io.debezium.time.ZonedTimestamp").required().defaultValue("2019-01-01T12:34:56.1234567+04:00").version(1)
+                                        .build())
+                        .field("colc", SchemaBuilder.string().optional().defaultValue("default_value").build())
+                        .field("cold", Schema.OPTIONAL_FLOAT64_SCHEMA)
+                        .build());
+
+        stopConnector();
+    }
+
+    @Test
     @FixFor("DBZ-1923")
     public void shouldDetectPurgedHistory() throws Exception {
         final int RECORDS_PER_TABLE = 5;
@@ -1684,6 +1782,27 @@ public class SqlServerConnectorIT extends AbstractConnectorTest {
                 entry(TYPE_LENGTH_PARAMETER_KEY, "24"));
 
         stopConnector();
+    }
+
+    @Test
+    @FixFor("DBZ-2379")
+    public void shouldNotStreamWhenUsingSnapshotModeInitialOnly() throws Exception {
+        final Configuration config = TestHelper.defaultConfig()
+                .with(SqlServerConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_ONLY)
+                .build();
+
+        final LogInterceptor logInterceptor = new LogInterceptor();
+        start(SqlServerConnector.class, config);
+        assertConnectorIsRunning();
+
+        // Wait for snapshot completion
+        consumeRecordsByTopic(1);
+
+        // should be no more records
+        assertNoRecordsToConsume();
+
+        final String message = "Streaming is not enabled in current configuration";
+        stopConnector(value -> assertThat(logInterceptor.containsMessage(message)).isTrue());
     }
 
     private void assertRecord(Struct record, List<SchemaAndValueField> expected) {

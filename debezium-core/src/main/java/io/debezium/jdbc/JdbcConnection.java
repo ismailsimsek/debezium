@@ -105,6 +105,14 @@ public class JdbcConnection implements AutoCloseable {
     }
 
     /**
+     * Extracts a data of resultset..
+     */
+    @FunctionalInterface
+    public static interface ResultSetExtractor<T> {
+        T apply(ResultSet rs) throws SQLException;
+    }
+
+    /**
      * Create a {@link ConnectionFactory} that replaces variables in the supplied URL pattern. Variables include:
      * <ul>
      * <li><code>${hostname}</code></li>
@@ -1093,7 +1101,8 @@ public class JdbcConnection implements AutoCloseable {
         final String columnName = columnMetadata.getString(4);
         if (columnFilter == null || columnFilter.matches(tableId.catalog(), tableId.schema(), tableId.table(), columnName)) {
             final ColumnEditor column = Column.editor().name(columnName);
-            column.type(columnMetadata.getString(6));
+            String columnType = columnMetadata.getString(6);
+            column.type(columnType);
             column.length(columnMetadata.getInt(7));
             if (columnMetadata.getObject(9) != null) {
                 column.scale(columnMetadata.getInt(9));
@@ -1112,10 +1121,18 @@ public class JdbcConnection implements AutoCloseable {
 
             column.nativeType(resolveNativeType(column.typeName()));
             column.jdbcType(resolveJdbcType(columnMetadata.getInt(5), column.nativeType()));
-
+            final String defaultValue = columnMetadata.getString(13);
+            if (defaultValue != null) {
+                getDefaultValue(column.create(), defaultValue).ifPresent(column::defaultValue);
+            }
             return Optional.of(column);
         }
 
+        return Optional.empty();
+    }
+
+    protected Optional<Object> getDefaultValue(Column column, String defaultValue) {
+        // nothing to do by default; overwrite in database specific implementation
         return Optional.empty();
     }
 
@@ -1208,4 +1225,29 @@ public class JdbcConnection implements AutoCloseable {
         return jdbcNullable == ResultSetMetaData.columnNullable || jdbcNullable == ResultSetMetaData.columnNullableUnknown;
     }
 
+    public <T> ResultSetMapper<T> singleResultMapper(ResultSetExtractor<T> extractor, String error) throws SQLException {
+        return (rs) -> {
+            if (rs.next()) {
+                final T ret = extractor.apply(rs);
+                if (!rs.next()) {
+                    return ret;
+                }
+            }
+            throw new IllegalStateException(error);
+        };
+    }
+
+    public static <T> T querySingleValue(Connection connection, String queryString, StatementPreparer preparer, ResultSetExtractor<T> extractor) throws SQLException {
+        final PreparedStatement preparedStatement = connection.prepareStatement(queryString);
+        preparer.accept(preparedStatement);
+        try (ResultSet resultSet = preparedStatement.executeQuery()) {
+            if (resultSet.next()) {
+                final T result = extractor.apply(resultSet);
+                if (!resultSet.next()) {
+                    return result;
+                }
+            }
+            throw new IllegalStateException("Exactly one result expected.");
+        }
+    }
 }

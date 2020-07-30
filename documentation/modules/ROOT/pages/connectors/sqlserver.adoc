@@ -1482,6 +1482,7 @@ Once the snapshot is complete, the connector will continue reading change events
  +
 Supported values are: +
 `initial`: Takes a snapshot of structure and data of captured tables; useful if topics should be populated with a complete representation of the data from the captured tables. +
+`initial_only`: Takes a snapshot of structure and data like `initial` but instead does not transition into streaming changes once the snapshot has completed. +
 `schema_only`: Takes a snapshot of the structure of captured tables only; useful if only changes happening from now onwards should be propagated to topics.
 
 |[[sqlserver-property-snapshot-isolation-mode]]<<sqlserver-property-snapshot-isolation-mode, `snapshot.isolation.mode`>>
@@ -1501,7 +1502,7 @@ twice - once in initial snapshot and once in streaming phase. Nonetheless, that 
 data mirroring.
 For `read_uncommitted` there are no data consistency guarantees at all (some data might be lost or corrupted).
 
-|[[sqlserver-property-source-timestamp-mode]]<<sqlserver-property-source-timestamp-mode>>, `source.timestamp.mode`
+|[[sqlserver-property-source-timestamp-mode]]<<sqlserver-property-source-timestamp-mode, `source.timestamp.mode`>>
 |_commit_
 |String representing the criteria of the attached timestamp within the source record (ts_ms).
 `commit` will set the source timestamp to the instant where the record was committed in the database (default and current behavior).
@@ -1594,6 +1595,10 @@ Possible values include "Z", "UTC", offset values like "+02:00", short zone ids 
 |When set to `true` {prodname} generates events with transaction boundaries and enriches data events envelope with transaction metadata.
 
 See {link-prefix}:{link-sqlserver-connector}#sqlserver-transaction-metadata[Transaction Metadata] for additional details.
+
+|[[sqlserver-property-retriable-restart-connector-wait-ms]]<<sqlserver-property-retriable-restart-connector-wait-ms, `retriable.restart{zwsp}.connector.wait.ms`>> +
+|10000 (10 seconds)
+|The number of milli-seconds to wait before restarting a connector after a retriable error occurs.
 
 |===
 

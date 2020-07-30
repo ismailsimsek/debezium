@@ -224,13 +224,21 @@ ZEROFILL:                            'ZEROFILL';
 TINYINT:                             'TINYINT';
 SMALLINT:                            'SMALLINT';
 MEDIUMINT:                           'MEDIUMINT';
+MIDDLEINT:                           'MIDDLEINT';
 INT:                                 'INT';
+INT1:                                'INT1';
+INT2:                                'INT2';
+INT3:                                'INT3';
+INT4:                                'INT4';
+INT8:                                'INT8';
 INTEGER:                             'INTEGER';
 BIGINT:                              'BIGINT';
 REAL:                                'REAL';
 DOUBLE:                              'DOUBLE';
 PRECISION:                           'PRECISION';
 FLOAT:                               'FLOAT';
+FLOAT4:                              'FLOAT4';
+FLOAT8:                              'FLOAT8';
 DECIMAL:                             'DECIMAL';
 DEC:                                 'DEC';
 NUMERIC:                             'NUMERIC';
@@ -248,6 +256,7 @@ VARBINARY:                           'VARBINARY';
 TINYBLOB:                            'TINYBLOB';
 BLOB:                                'BLOB';
 MEDIUMBLOB:                          'MEDIUMBLOB';
+LONG:                                'LONG';
 LONGBLOB:                            'LONGBLOB';
 TINYTEXT:                            'TINYTEXT';
 TEXT:                                'TEXT';
@@ -272,6 +281,9 @@ MINUTE_MICROSECOND:                  'MINUTE_MICROSECOND';
 HOUR_MICROSECOND:                    'HOUR_MICROSECOND';
 DAY_MICROSECOND:                     'DAY_MICROSECOND';
 
+// JSON keywords
+JSON_VALID:                          'JSON_VALID';
+JSON_SCHEMA_VALID:                   'JSON_SCHEMA_VALID';
 
 // Group function Keywords
 
@@ -291,7 +303,6 @@ SUM:                                 'SUM';
 VAR_POP:                             'VAR_POP';
 VAR_SAMP:                            'VAR_SAMP';
 VARIANCE:                            'VARIANCE';
-
 
 // Common function Keywords
 
@@ -314,8 +325,6 @@ TRIM:                                'TRIM';
 UTC_DATE:                            'UTC_DATE';
 UTC_TIME:                            'UTC_TIME';
 UTC_TIMESTAMP:                       'UTC_TIMESTAMP';
-
-
 
 // Keywords, but can be ID
 // Common Keywords, but can be ID
