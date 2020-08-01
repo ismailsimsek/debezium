@@ -6,11 +6,13 @@
 
 package io.debezium.server.s3;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.io.IOException;
 
 public interface BatchRecordWriter {
 
-    void append(String destination, String eventValue) throws IOException;
+    void append(String destination, JsonNode keyJson, JsonNode valueJson) throws IOException;
 
     void uploadBatch() throws IOException;
 

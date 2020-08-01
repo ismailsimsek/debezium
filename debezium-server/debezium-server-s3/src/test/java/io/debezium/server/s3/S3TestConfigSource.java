@@ -30,8 +30,9 @@ public class S3TestConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.s3.credentials.useinstancecred", "false");
         s3Test.put("debezium.sink.s3.batch.row.limit", "2");
         s3Test.put("debezium.sink.s3.batch.time.limit", "5");
+        // enable disable schema
+        s3Test.put("debezium.format.value.schemas.enable", "true");
         //
-        // s3Test.put("debezium.format.value.schemas.enable", "true");
         // s3Test.put("debezium.format.value.converter", "io.debezium.converters.CloudEventsConverter");
         s3Test.put("value.converter", "io.debezium.converters.CloudEventsConverter");
         // s3Test.put("debezium.format.value.converter.data.serializer.type" , "json");

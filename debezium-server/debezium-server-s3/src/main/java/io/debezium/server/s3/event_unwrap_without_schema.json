@@ -1,0 +1,24 @@
+{
+  "id": 1003,
+  "first_name": "Edward",
+  "last_name": "Walker",
+  "email": "ed@walker.com",
+  "__op": "r",
+  "__table": "customers",
+  "__lsn": 33832960,
+  "__source_ts_ms": 1596310608673,
+  "__deleted": "false"
+}
+// another event
+{
+  "id": 10004,
+  "order_date": 16852,
+  "purchaser": 1003,
+  "quantity": 1,
+  "product_id": 107,
+  "__op": "r",
+  "__table": "orders",
+  "__lsn": 33832960,
+  "__source_ts_ms": 1596310608690,
+  "__deleted": "false"
+}

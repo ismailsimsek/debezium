@@ -5,11 +5,21 @@
  */
 package io.debezium.server.s3;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.List;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.DebeziumEngine.RecordCommitter;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
+import org.apache.kafka.connect.json.JsonDeserializer;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -17,25 +27,10 @@ import javax.enterprise.context.Dependent;
 import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
 import javax.inject.Named;
-
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.DebeziumEngine.RecordCommitter;
-import io.debezium.engine.format.Json;
-import io.debezium.server.BaseChangeConsumer;
-import io.debezium.server.CustomConsumerBuilder;
-
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.URISyntaxException;
+import java.util.List;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -52,20 +47,14 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
     private static final String PROP_BUCKET_NAME = PROP_PREFIX + "bucket.name";
     final String valueFormat = ConfigProvider.getConfig().getOptionalValue("debezium.format.value", String.class).orElse(Json.class.getSimpleName().toLowerCase());
     final String credentialsProfile = ConfigProvider.getConfig().getOptionalValue(PROP_PREFIX + "credentials.profile", String.class).orElse("default");
-    final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.endpointoverride", String.class).orElse("false");
     final Boolean useInstanceProfile = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.credentials.useinstancecred", Boolean.class).orElse(false);
 
-    @Inject
-    @CustomConsumerBuilder
-    Instance<S3Client> customClient;
     @Inject
     Instance<ObjectKeyMapper> customObjectKeyMapper;
 
     @ConfigProperty(name = PROP_BUCKET_NAME, defaultValue = "My-S3-Bucket")
     String bucket;
     S3Client s3client;
-    @ConfigProperty(name = PROP_REGION_NAME, defaultValue = "eu-central-1")
-    String region;
     // private final ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
     BatchRecordWriter batchWriter;
     ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
@@ -78,12 +67,6 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
         }
         LOGGER.info("Using '{}' object name mapper", objectKeyMapper);
 
-        if (customClient.isResolvable()) {
-            s3client = customClient.get();
-            LOGGER.info("Obtained custom configured S3Client '{}'", s3client);
-            return;
-        }
-
         AwsCredentialsProvider credProvider;
         if (useInstanceProfile) {
             LOGGER.info("Using Instance Profile Credentials For S3");
@@ -93,17 +76,9 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
             credProvider = ProfileCredentialsProvider.create(credentialsProfile);
         }
 
-        S3ClientBuilder clientBuilder = S3Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(credProvider);
-        // used for testing, using minio
-        if (!endpointOverride.trim().toLowerCase().equals("false")) {
-            clientBuilder.endpointOverride(new URI(endpointOverride));
-        }
-        s3client = clientBuilder.build();
-        LOGGER.info("Using default S3Client '{}'", s3client);
         if (valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
-            batchWriter = new JsonMapDbBatchRecordWriter(objectKeyMapper, s3client, bucket);
+            batchWriter = new JsonMapDbBatchRecordWriter(objectKeyMapper, credProvider, bucket);
+            batchWriter = new SparkMapDbBatchRecordWriter(objectKeyMapper, credProvider, bucket);
         }
         else {
             throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) value formats are {json,}!");
@@ -131,8 +106,16 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
             throws InterruptedException {
         try {
             for (ChangeEvent<Object, Object> record : records) {
-                batchWriter.append(record.destination(), getString(record.value()));
-                committer.markProcessed(record);
+                //final Serde<Json> serde = DebeziumSerdes.payloadJson(Json.class);
+                //serde.serializer().serialize()
+                JsonDeserializer keyJsonDeserializer = new JsonDeserializer();
+                JsonNode keyJson = keyJsonDeserializer.deserialize(record.destination(), getBytes(record.key()));
+                JsonNode valueJson = keyJsonDeserializer.deserialize(record.destination(), getBytes(record.value()));
+                LOGGER.error(valueJson.toString());
+                LOGGER.error(keyJson.toString());
+                continue;
+                //batchWriter.append(record.destination(), keyJson, valueJson);
+                //committer.markProcessed(record);
             }
             committer.markBatchFinished();
         }
