@@ -7,10 +7,10 @@
 package io.debezium.server.s3;
 
 import java.io.File;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -18,6 +18,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.spark.SparkConf;
+import org.apache.spark.sql.*;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -29,44 +31,33 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.io.Files;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-public class JsonMapDbBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
+public class SparkBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
 
     private static final String PROP_PREFIX = "debezium.sink.s3.";
     private static final String PROP_REGION_NAME = PROP_PREFIX + "region";
     private static final String PROP_BUCKET_NAME = PROP_PREFIX + "bucket.name";
     protected final File TEMPDIR = Files.createTempDir();
-    private static final Logger LOGGER = LoggerFactory.getLogger(JsonMapDbBatchRecordWriter.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SparkBatchRecordWriter.class);
     private LocalDateTime batchTime = LocalDateTime.now();
     final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.batch.row.limit", Integer.class).orElse(500);
     final String tags = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.object.tags", String.class).orElse("");
     final String region = ConfigProvider.getConfig().getOptionalValue(PROP_REGION_NAME, String.class).orElse("eu-central-1");
     final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.endpointoverride", String.class).orElse("false");
 
-    private final S3Client s3Client;
+    // private final S3Client s3Client;
     private final String bucket;
     private final ObjectKeyMapper objectKeyMapper;
     final DB cdcDb;
     final ConcurrentMap<String, String> map_data;
     final ConcurrentMap<String, Integer> map_batchid;
     final ScheduledExecutorService timerExecutor = Executors.newSingleThreadScheduledExecutor();
+    private final SparkConf sparkconf;
+    private final SparkSession spark;
+    private final AwsCredentialsProvider credProvider;
 
-    public JsonMapDbBatchRecordWriter(ObjectKeyMapper mapper, AwsCredentialsProvider credProvider, String bucket) throws URISyntaxException {
-
-        S3ClientBuilder clientBuilder = S3Client.builder()
-                .region(Region.of(region))
-                .credentialsProvider(credProvider);
-        // used for testing, using minio
-        if (!endpointOverride.trim().toLowerCase().equals("false")) {
-            clientBuilder.endpointOverride(new URI(endpointOverride));
-        }
-        this.s3Client = clientBuilder.build();
-        LOGGER.info("Using default S3Client '{}'", this.s3Client);
+    public SparkBatchRecordWriter(ObjectKeyMapper mapper, AwsCredentialsProvider credProvider, String bucket) {
+        this.credProvider = credProvider;
         this.bucket = bucket;
         this.objectKeyMapper = mapper;
 
@@ -84,7 +75,24 @@ public class JsonMapDbBatchRecordWriter implements BatchRecordWriter, AutoClosea
         map_batchid = cdcDb
                 .hashMap("map_batchid", Serializer.STRING, Serializer.INTEGER)
                 .createOrOpen();
+        this.sparkconf = new SparkConf()
+                .setAppName("CDC s3 Sink Using Spark")
+                .setMaster("local")
+                .set("spark.master", "local")
+                .set("fs.s3a.access.key", this.credProvider.resolveCredentials().accessKeyId())
+                .set("fs.s3a.secret.key", this.credProvider.resolveCredentials().secretAccessKey())
+                .set("fs.s3a.endpoint", "s3." + region + ".amazonaws.com");
+        // used for testing, using minio
+        if (!endpointOverride.trim().toLowerCase().equals("false")) {
+            this.sparkconf.set("spark.hadoop.fs.s3a.endpoint", endpointOverride);
+        }
+        this.spark = SparkSession
+                .builder()
+                .config(this.sparkconf)
+                .getOrCreate();
+        // this.spark.newSession()
 
+        // @TODO use schema in the json event to fix dataframe schem
         LOGGER.info("Starting S3 Batch Consumer({})", this.getClass().getName());
         LOGGER.info("Set Batch Row limit to {} Rows", batchLimit);
         LOGGER.info("Local Cache (MapDb) Location:{}", TEMPDIR.toPath().resolve("debeziumevents.db").toAbsolutePath().toString());
@@ -130,12 +138,17 @@ public class JsonMapDbBatchRecordWriter implements BatchRecordWriter, AutoClosea
         final String data = map_data.get(destination);
         String s3File = objectKeyMapper.map(destination, batchTime, batchId);
         LOGGER.debug("Uploading s3File destination:{} key:{}", destination, s3File);
-        final PutObjectRequest putRecord = PutObjectRequest.builder()
-                .bucket(bucket)
-                .key(s3File)
-                .tagging(tags)
-                .build();
-        s3Client.putObject(putRecord, RequestBody.fromString(data));
+        // @TODO add helper class to process json schema, convert to dataframe. with schema
+        // https://sparkbyexamples.com/spark/spark-read-json-with-schema/
+        // https://sparkbyexamples.com/spark/spark-sql-dataframe-data-types/
+        List<String> jsonData = Arrays.asList(data.split(IOUtils.LINE_SEPARATOR));
+        Dataset<String> ds = spark.createDataset(jsonData, Encoders.STRING());
+        // schema
+        // Dataset<Row> df = spark.read().schema(mySchema).json(_df);
+        Dataset<Row> df = spark.read().json(ds);
+        df.write()
+                .mode(SaveMode.Append)
+                .parquet(s3File);
         // increment batch id
         map_batchid.put(destination, batchId + 1);
         // start new batch
@@ -166,6 +179,7 @@ public class JsonMapDbBatchRecordWriter implements BatchRecordWriter, AutoClosea
             this.uploadBatch();
             closeDb();
         }
+        spark.stop();
         TEMPDIR.delete();
     }
 

@@ -119,7 +119,7 @@ public class S3BatchIT {
             return objects.size() >= MESSAGE_COUNT;
         });
 
-        JsonMapDbBatchRecordWriter bw = new JsonMapDbBatchRecordWriter(new TimeBasedDailyObjectKeyMapper(), pcred, S3TestConfigSource.S3_BUCKET);
+        JsonBatchRecordWriter bw = new JsonBatchRecordWriter(new TimeBasedDailyObjectKeyMapper(), pcred, S3TestConfigSource.S3_BUCKET);
 
         ObjectMapper objectMapper = new ObjectMapper();
         bw.append("table1", objectMapper.readTree("{row1}"), objectMapper.readTree("{row1}"));

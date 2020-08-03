@@ -81,8 +81,8 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
         }
 
         if (valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
-            batchWriter = new JsonMapDbBatchRecordWriter(objectKeyMapper, credProvider, bucket);
-            batchWriter = new SparkMapDbBatchRecordWriter(objectKeyMapper, credProvider, bucket);
+            batchWriter = new JsonBatchRecordWriter(objectKeyMapper, credProvider, bucket);
+            batchWriter = new SparkBatchRecordWriter(objectKeyMapper, credProvider, bucket);
         }
         else {
             throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) value formats are {json,}!");
