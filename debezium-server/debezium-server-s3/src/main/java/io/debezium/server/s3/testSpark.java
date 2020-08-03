@@ -6,9 +6,6 @@
 
 package io.debezium.server.s3;
 
-import java.util.Arrays;
-import java.util.List;
-
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -20,7 +17,11 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+import java.util.List;
+
 public class testSpark {
+    protected static final Logger LOGGER = LoggerFactory.getLogger(testSpark.class);
 
     public static void main(String[] args) {
         Logger LOGGER = LoggerFactory.getLogger(testSpark.class);
@@ -74,9 +75,9 @@ public class testSpark {
          *
          * // df = getDf(df);
          * df.printSchema();
-         * //System.out.println(df.count());
-         * //System.out.println(df.describe());
-         * //System.out.println(df.columns().toString());
+         * //LOGGER.info(df.count());
+         * //LOGGER.info(df.describe());
+         * //LOGGER.info(df.columns().toString());
          *
          */
     }
@@ -97,10 +98,10 @@ public class testSpark {
         Dataset<String> _df = spark.createDataset(jsonData, Encoders.STRING());
         Dataset<Row> df = spark.read().schema(schemaUntyped).json(_df);
         df.printSchema();
-        System.out.println(df.count());
-        System.out.println(df.describe());
-        System.out.println(Arrays.toString(df.columns()));
-        System.out.println("---------------------------------------------------------------");
+        LOGGER.info(String.valueOf(df.count()));
+        LOGGER.info(String.valueOf(df.describe()));
+        LOGGER.info(Arrays.toString(df.columns()));
+        LOGGER.info("---------------------------------------------------------------");
 
     }
 
@@ -109,13 +110,13 @@ public class testSpark {
         String s = "{\"name\":\"testc.inventory.orders.Value\",\"optional\":false,\"type\":\"struct\",\"fields\":[{\"field\":\"id\",\"optional\":false,\"type\":\"int32\"},{\"field\":\"order_date\",\"name\":\"io.debezium.time.Date\",\"optional\":false,\"type\":\"int32\",\"version\":1},{\"field\":\"purchaser\",\"optional\":false,\"type\":\"int32\"},{\"field\":\"quantity\",\"optional\":false,\"type\":\"int32\"},{\"field\":\"product_id\",\"optional\":false,\"type\":\"int32\"},{\"field\":\"__op\",\"optional\":true,\"type\":\"string\"},{\"field\":\"__table\",\"optional\":true,\"type\":\"string\"},{\"field\":\"__lsn\",\"optional\":true,\"type\":\"int64\"},{\"field\":\"__source_ts_ms\",\"optional\":true,\"type\":\"int64\"},{\"field\":\"__deleted\",\"optional\":true,\"type\":\"string\"}]}\n";
         s = "{\"type\":\"struct\",\"fields\":[{\"name\":\"id\",\"nullable\":false,\"type\":\"int\"},{\"name\":\"order_date\",\"nullable\":false,\"type\":\"int32\",\"version\":1},{\"name\":\"purchaser\",\"nullable\":false,\"type\":\"int32\"},{\"name\":\"quantity\",\"nullable\":false,\"type\":\"int32\"},{\"name\":\"product_id\",\"nullable\":false,\"type\":\"int32\"},{\"name\":\"__op\",\"nullable\":true,\"type\":\"string\"},{\"name\":\"__table\",\"nullable\":true,\"type\":\"string\"},{\"name\":\"__lsn\",\"nullable\":true,\"type\":\"int64\"},{\"name\":\"__source_ts_ms\",\"nullable\":true,\"type\":\"int64\"},{\"name\":\"__deleted\",\"nullable\":true,\"type\":\"string\"}]}\n";
         // schema = (StructType) DataType.fromJson(s);
-        // System.out.println(schema);
+        // LOGGER.info(schema);
     }
 
     private static StructType getDFSchema(JSONObject j) {
 
         StructType schema = new StructType();
-        System.out.println(j.get("schema").toString());
+        LOGGER.info(j.get("schema").toString());
         schema = (StructType) DataType.fromJson(j.get("schema").toString());
         /*
          * schema.add("City", StringType, true)
@@ -157,12 +158,12 @@ public class testSpark {
         df.printSchema();
         df.write().mode("append").parquet("test.parquet");
         // df.col("").cast(IntegerType);
-        System.out.println("---------------------------------------------------------------");
+        LOGGER.info("---------------------------------------------------------------");
         JSONObject myschema = new JSONObject(df.first().json());
-        System.out.println(myschema.has("schema"));
-        System.out.println(myschema.has("payload"));
-        System.out.println(myschema.toString());
-        System.out.println("---------------------------------------------------------------");
+        LOGGER.info(String.valueOf(myschema.has("schema")));
+        LOGGER.info(String.valueOf(myschema.has("payload")));
+        LOGGER.info(myschema.toString());
+        LOGGER.info("---------------------------------------------------------------");
 
         return df;
     }
