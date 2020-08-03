@@ -94,8 +94,7 @@ public class SparkBatchRecordWriter implements BatchRecordWriter, AutoCloseable 
                 .getOrCreate();
         // this.spark.newSession()
 
-        // @TODO use schema in the json event to fix dataframe schem
-        LOGGER.info("Starting S3 Batch Consumer({})", this.getClass().getName());
+        LOGGER.info("Starting S3 Spark Consumer({})", this.getClass().getName());
         LOGGER.info("Set Batch Row limit to {} Rows", batchLimit);
         LOGGER.info("Local Cache (MapDb) Location:{}", TEMPDIR.toPath().resolve("debeziumevents.db").toAbsolutePath().toString());
         setupTimer();
