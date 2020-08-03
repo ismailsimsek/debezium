@@ -5,17 +5,24 @@
  */
 package io.debezium.server.s3;
 
-import static org.apache.spark.sql.types.DataTypes.IntegerType;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.apache.spark.sql.types.AbstractDataType;
+import org.apache.spark.sql.types.DataType;
+import org.apache.spark.sql.types.StructType;
 
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.spark.sql.types.AbstractDataType;
-import org.apache.spark.sql.types.DataType;
+import static org.apache.spark.sql.types.DataTypes.IntegerType;
 
-public class DfSchemaUtil {
+/**
+ * Implementation of the consumer that delivers the messages into Amazon S3 destination.
+ *
+ * @author Ismail Simsek
+ */
+public class SparkDfSchemaUtil {
 
     /**
      * Maps Schema.Types to a list of Java classes that can be used to represent them.
@@ -63,5 +70,16 @@ public class DfSchemaUtil {
          * // schemaless data and logical types will have ambiguous schemas (e.g. many of them use the same Java class) so
          * // they should not be used without schemas.
          */
+    }
+
+    public static StructType getSparkDfSchema(JsonNode event) {
+        StructType schema = null;
+        if (event == null || !event.has("schema")) {
+            return null;
+        }
+        // @TODO add helper class to process json schema, convert to dataframe. with schema
+        // https://sparkbyexamples.com/spark/spark-read-json-with-schema/
+        // https://sparkbyexamples.com/spark/spark-sql-dataframe-data-types/
+        return schema;
     }
 }

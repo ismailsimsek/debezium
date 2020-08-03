@@ -12,18 +12,16 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Iterables;
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.SparkConf;
-import org.apache.spark.sql.DataFrameReader;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Encoders;
-import org.apache.spark.sql.Row;
-import org.apache.spark.sql.SaveMode;
-import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.*;
 import org.apache.spark.sql.types.StructType;
+import org.eclipse.microprofile.config.ConfigProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
+
+import static io.debezium.server.s3.SparkDfSchemaUtil.getSparkDfSchema;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -31,29 +29,42 @@ import java.util.List;
  * @author Ismail Simsek
  */
 public class SparkBatchRecordWriter extends AbstractBatchRecordWriter {
-    private final SparkConf sparkconf;
-    private final SparkSession spark;
 
-    public SparkBatchRecordWriter(ObjectKeyMapper mapper, AwsCredentialsProvider credProvider, String bucket) throws URISyntaxException {
-        super(mapper, credProvider, bucket);
+    private static final String SPARK_PROP_PREFIX = "debezium.sink.s3sparkbatch.";
+    final Boolean removeSchema = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.s3sparkbatch.removeschema", Boolean.class).orElse(true);
 
-        this.sparkconf = new SparkConf()
-                .setAppName("CDC s3 Sink Using Spark")
-                .setMaster("local")
-                .set("spark.master", "local")
-                .set("fs.s3a.access.key", this.credProvider.resolveCredentials().accessKeyId())
-                .set("fs.s3a.secret.key", this.credProvider.resolveCredentials().secretAccessKey())
-                .set("fs.s3a.endpoint", "s3." + region + ".amazonaws.com");
+    private final SparkConf sparkconf = new SparkConf()
+            .setAppName("CDC s3 Sink Using Spark")
+            .setMaster("local");
+
+    private void addSparkconf() {
         // used for testing, using minio
         if (!endpointOverride.trim().toLowerCase().equals("false")) {
             this.sparkconf.set("spark.hadoop.fs.s3a.endpoint", endpointOverride);
         }
-        this.spark = SparkSession
+        this.sparkconf
+                .set("fs.s3a.access.key", this.credProvider.resolveCredentials().accessKeyId())
+                .set("fs.s3a.secret.key", this.credProvider.resolveCredentials().secretAccessKey())
+                .set("fs.s3a.endpoint", "s3." + region + ".amazonaws.com");
+        for (String name : ConfigProvider.getConfig().getPropertyNames()) {
+            if (name.startsWith(SPARK_PROP_PREFIX)) {
+                this.sparkconf.set(name.substring(SPARK_PROP_PREFIX.length()), ConfigProvider.getConfig().getValue(name, String.class));
+                LOGGER.info("Setting Spark Conf '{}'='{}'", name.substring(SPARK_PROP_PREFIX.length()), ConfigProvider.getConfig().getValue(name, String.class));
+            }
+        }
+
+    }
+
+    private SparkSession getSparkSession() {
+        return SparkSession
                 .builder()
                 .config(this.sparkconf)
                 .getOrCreate();
-        // this.spark.newSession()
+    }
 
+    public SparkBatchRecordWriter(ObjectKeyMapper mapper, AwsCredentialsProvider credProvider, String bucket) throws URISyntaxException {
+        super(mapper, credProvider, bucket);
+        this.addSparkconf();
         LOGGER.info("Starting S3 Spark Consumer({})", this.getClass().getName());
     }
 
@@ -63,18 +74,16 @@ public class SparkBatchRecordWriter extends AbstractBatchRecordWriter {
         String s3File = objectKeyMapper.map(destination, batchTime, batchId);
         LOGGER.debug("Uploading s3File destination:{} key:{}", destination, s3File);
         List<String> jsonData = Arrays.asList(data.split(IOUtils.LINE_SEPARATOR));
+        SparkSession spark = getSparkSession();
         Dataset<String> ds = spark.createDataset(jsonData, Encoders.STRING());
         DataFrameReader dfReader = spark.read();
         // Read DF with Schema if schema exists
-        // @TODO add helper class to process json schema, convert to dataframe. with schema
-        // https://sparkbyexamples.com/spark/spark-read-json-with-schema/
-        // https://sparkbyexamples.com/spark/spark-sql-dataframe-data-types/
         if (!jsonData.isEmpty()) {
             try {
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode lastEvent = mapper.readTree(Iterables.getLast(jsonData));
-                if (lastEvent != null && lastEvent.has("schema")) {
-                    StructType schema = null; // @TODO get DF schema.
+                StructType schema = getSparkDfSchema(lastEvent);
+                if (schema != null) {
                     dfReader.schema(schema);
                 }
             }
@@ -83,6 +92,9 @@ public class SparkBatchRecordWriter extends AbstractBatchRecordWriter {
             }
         }
         Dataset<Row> df = dfReader.json(ds);
+        if (removeSchema && Arrays.asList(df.columns()).contains("payload")) {
+            df = df.select("payload.*");
+        }
 
         df.write()
                 .mode(SaveMode.Append)
@@ -92,13 +104,7 @@ public class SparkBatchRecordWriter extends AbstractBatchRecordWriter {
         // start new batch
         map_data.remove(destination);
         cdcDb.commit();
-        LOGGER.debug("Upload Succeeded! destination:{} key:{}", destination, s3File);
-
-    }
-
-    @Override
-    public void close() {
-        super.close();
         spark.close();
+        LOGGER.debug("Upload Succeeded! destination:{} key:{}", destination, s3File);
     }
 }
