@@ -6,6 +6,24 @@
 
 package io.debezium.server.s3;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Iterables;
+import com.google.common.io.Files;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.spark.SparkConf;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.types.StructType;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.Serializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+
 import java.io.File;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -15,22 +33,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.spark.SparkConf;
-import org.apache.spark.sql.*;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.Serializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.io.Files;
-
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 public class SparkBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
 
@@ -138,14 +140,28 @@ public class SparkBatchRecordWriter implements BatchRecordWriter, AutoCloseable 
         final String data = map_data.get(destination);
         String s3File = objectKeyMapper.map(destination, batchTime, batchId);
         LOGGER.debug("Uploading s3File destination:{} key:{}", destination, s3File);
+        List<String> jsonData = Arrays.asList(data.split(IOUtils.LINE_SEPARATOR));
+        Dataset<String> ds = spark.createDataset(jsonData, Encoders.STRING());
+        DataFrameReader dfReader = spark.read();
+        // Read DF with Schema if schema exists
         // @TODO add helper class to process json schema, convert to dataframe. with schema
         // https://sparkbyexamples.com/spark/spark-read-json-with-schema/
         // https://sparkbyexamples.com/spark/spark-sql-dataframe-data-types/
-        List<String> jsonData = Arrays.asList(data.split(IOUtils.LINE_SEPARATOR));
-        Dataset<String> ds = spark.createDataset(jsonData, Encoders.STRING());
-        // schema
-        // Dataset<Row> df = spark.read().schema(mySchema).json(_df);
-        Dataset<Row> df = spark.read().json(ds);
+        if (!jsonData.isEmpty()) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode lastEvent = mapper.readTree(Iterables.getLast(jsonData));
+                if (lastEvent != null && lastEvent.has("schema")) {
+                    StructType schema = null; // @TODO get DF schema.
+                    dfReader.schema(schema);
+                }
+            }
+            catch (JsonProcessingException e) {
+                LOGGER.warn(e.getMessage());
+            }
+        }
+        Dataset<Row> df = dfReader.json(ds);
+
         df.write()
                 .mode(SaveMode.Append)
                 .parquet(s3File);
