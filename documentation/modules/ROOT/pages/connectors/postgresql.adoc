@@ -118,8 +118,11 @@ Note that if your database is hosted by a service such as https://www.heroku.com
 If so, and if you're using PostgreSQL 10+, you can use the pgoutput decoder support to monitor your database.
 If that is not an option, you'll be unable to monitor your database with {prodname}.
 
+[[postgresql-in-the-cloud]]
+=== PostgreSQL in the Cloud
+
 [[postgresql-on-amazon-rds]]
-=== PostgreSQL on Amazon RDS
+==== PostgreSQL on Amazon RDS
 
 It is possible to monitor PostgreSQL database running in https://aws.amazon.com/rds/[Amazon RDS]. To get it running you must fulfill the following conditions
 
@@ -145,6 +148,27 @@ As of January 2019, the following Postgres versions on RDS come with an up-to-da
 * Postgres 11: any version
 ====
 
+[[postgresql-on-azure]]
+==== PostgreSQL on Azure
+
+It is possible to use Debezium with (https://docs.microsoft.com/azure/postgresql/)[Azure Database for PostgreSQL] that has support for `wal2json` and `pgoutput` plugins, both of which are supported by Debezium as well.
+
+Set the Azure replication support to `logical`. You can use the (https://docs.microsoft.com/en-us/azure/postgresql/concepts-logical#using-azure-cli)[Azure CLI] or the (https://docs.microsoft.com/en-us/azure/postgresql/concepts-logical#using-azure-portal)[Azure Portal] to configure this.
+
+For example, if you were to choose the Azure CLI, here are the (https://docs.microsoft.com/cli/azure/postgres/server?view=azure-cli-latest)[`az postgres server`] commands which you will need to execute:
+
+```
+az postgres server configuration set --resource-group mygroup --server-name myserver --name azure.replication_support --value logical
+
+az postgres server restart --resource-group mygroup --name myserver
+```
+
+[IMPORTANT]
+====
+While using the `pgoutput` plugin, it is recommended that you configure `filtered` as the (https://debezium.io/documentation/reference/1.2/connectors/postgresql.html#postgresql-publication-autocreate-mode)[`publication.autocreate.mode`]. If you use `all_tables` (which is the default value for `publication.autocreate.mode`) and the publication is not found, the connector will try to create one using `CREATE PUBLICATION <publication_name> FOR ALL TABLES;` which will fail due to lack of permissions.
+====
+
+===
 
 [[postgresql-output-plugin]]
 === Installing the Logical Decoding Output Plug-in

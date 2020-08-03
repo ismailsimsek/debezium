@@ -55,6 +55,7 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
 
         initializeConnectorTestFramework();
         Testing.Files.delete(TestHelper.DB_HISTORY_PATH);
+        // Testing.Debug.enable();
     }
 
     @After
@@ -763,14 +764,26 @@ public class SqlServerChangeTableSetIT extends AbstractConnectorTest {
         assertConnectorIsRunning();
         TestHelper.waitForSnapshotToBeCompleted();
 
+        TestHelper.waitForStreamingStarted();
+        TestHelper.waitForMaxLsnAvailable(connection);
+
         connection.execute("ALTER TABLE dbo.tableb ADD DEFAULT ('default_value') FOR colb");
         TestHelper.enableTableCdc(connection, "tableb", "after_change");
 
         connection.execute("INSERT INTO tableb VALUES('1', 'some_value')");
+        TestHelper.waitForCdcRecord(connection, "tableb", "after_change", rs -> rs.getInt("id") == 1);
+
         List<SourceRecord> records = consumeRecordsByTopic(1).recordsForTopic("server1.dbo.tableb");
         Assertions.assertThat(records).hasSize(1);
+        Testing.debug("Records: " + records);
+        Testing.debug("Value Schema: " + records.get(0).valueSchema());
+        Testing.debug("Fields: " + records.get(0).valueSchema().fields());
+        Testing.debug("After Schema: " + records.get(0).valueSchema().field("after").schema());
+        Testing.debug("After Columns: " + records.get(0).valueSchema().field("after").schema().fields());
 
         Schema colbSchema = records.get(0).valueSchema().field("after").schema().field("colb").schema();
+        Testing.debug("ColumnB Schema: " + colbSchema);
+        Testing.debug("ColumnB Schema Default Value: " + colbSchema.defaultValue());
         Assertions.assertThat(colbSchema.defaultValue()).isNotNull();
         Assertions.assertThat(colbSchema.defaultValue()).isEqualTo("default_value");
     }
