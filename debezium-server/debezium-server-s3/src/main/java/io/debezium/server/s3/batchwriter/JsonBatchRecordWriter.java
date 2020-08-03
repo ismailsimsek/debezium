@@ -6,23 +6,26 @@
 
 package io.debezium.server.s3.batchwriter;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.io.Files;
-import io.debezium.server.s3.BatchRecordWriter;
-import io.debezium.server.s3.ObjectKeyMapper;
-import org.apache.commons.io.FileUtils;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.commons.io.FileUtils;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.io.Files;
+
+import io.debezium.server.s3.BatchRecordWriter;
+import io.debezium.server.s3.ObjectKeyMapper;
+
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.

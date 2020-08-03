@@ -6,9 +6,9 @@
 
 package io.debezium.server.s3;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import java.io.IOException;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 public interface BatchRecordWriter {
 

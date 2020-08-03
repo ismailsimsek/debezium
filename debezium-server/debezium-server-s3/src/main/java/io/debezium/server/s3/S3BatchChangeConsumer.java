@@ -5,21 +5,10 @@
  */
 package io.debezium.server.s3;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.DebeziumEngine.RecordCommitter;
-import io.debezium.engine.format.Json;
-import io.debezium.server.BaseChangeConsumer;
-import org.apache.kafka.connect.json.JsonDeserializer;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-import software.amazon.awssdk.services.s3.S3Client;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.URISyntaxException;
+import java.util.List;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -27,10 +16,25 @@ import javax.enterprise.context.Dependent;
 import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
 import javax.inject.Named;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.net.URISyntaxException;
-import java.util.List;
+
+import org.apache.kafka.connect.json.JsonDeserializer;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.DebeziumEngine.RecordCommitter;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
+import software.amazon.awssdk.services.s3.S3Client;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -106,16 +110,16 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
             throws InterruptedException {
         try {
             for (ChangeEvent<Object, Object> record : records) {
-                //final Serde<Json> serde = DebeziumSerdes.payloadJson(Json.class);
-                //serde.serializer().serialize()
+                // final Serde<Json> serde = DebeziumSerdes.payloadJson(Json.class);
+                // serde.serializer().serialize()
                 JsonDeserializer keyJsonDeserializer = new JsonDeserializer();
                 JsonNode keyJson = keyJsonDeserializer.deserialize(record.destination(), getBytes(record.key()));
                 JsonNode valueJson = keyJsonDeserializer.deserialize(record.destination(), getBytes(record.value()));
                 LOGGER.error(valueJson.toString());
                 LOGGER.error(keyJson.toString());
                 continue;
-                //batchWriter.append(record.destination(), keyJson, valueJson);
-                //committer.markProcessed(record);
+                // batchWriter.append(record.destination(), keyJson, valueJson);
+                // committer.markProcessed(record);
             }
             committer.markBatchFinished();
         }

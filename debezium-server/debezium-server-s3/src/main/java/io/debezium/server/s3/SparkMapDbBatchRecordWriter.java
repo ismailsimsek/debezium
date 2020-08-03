@@ -6,8 +6,16 @@
 
 package io.debezium.server.s3;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.io.Files;
+import java.io.File;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.spark.SparkConf;
@@ -18,17 +26,11 @@ import org.mapdb.DBMaker;
 import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
-import java.io.File;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.io.Files;
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 public class SparkMapDbBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
 
@@ -43,7 +45,7 @@ public class SparkMapDbBatchRecordWriter implements BatchRecordWriter, AutoClose
     final String region = ConfigProvider.getConfig().getOptionalValue(PROP_REGION_NAME, String.class).orElse("eu-central-1");
     final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.endpointoverride", String.class).orElse("false");
 
-    //private final S3Client s3Client;
+    // private final S3Client s3Client;
     private final String bucket;
     private final ObjectKeyMapper objectKeyMapper;
     final DB cdcDb;
@@ -79,8 +81,7 @@ public class SparkMapDbBatchRecordWriter implements BatchRecordWriter, AutoClose
                 .set("spark.master", "local")
                 .set("fs.s3a.access.key", this.credProvider.resolveCredentials().accessKeyId())
                 .set("fs.s3a.secret.key", this.credProvider.resolveCredentials().secretAccessKey())
-                .set("fs.s3a.endpoint", "s3." + region + ".amazonaws.com")
-        ;
+                .set("fs.s3a.endpoint", "s3." + region + ".amazonaws.com");
         // used for testing, using minio
         if (!endpointOverride.trim().toLowerCase().equals("false")) {
             this.sparkconf.set("spark.hadoop.fs.s3a.endpoint", endpointOverride);
@@ -89,7 +90,7 @@ public class SparkMapDbBatchRecordWriter implements BatchRecordWriter, AutoClose
                 .builder()
                 .config(this.sparkconf)
                 .getOrCreate();
-        //this.spark.newSession()
+        // this.spark.newSession()
 
         // @TODO use schema in the json event to fix dataframe schem
         LOGGER.info("Starting S3 Batch Consumer({})", this.getClass().getName());
@@ -143,7 +144,7 @@ public class SparkMapDbBatchRecordWriter implements BatchRecordWriter, AutoClose
         List<String> jsonData = Arrays.asList(data.split(IOUtils.LINE_SEPARATOR));
         Dataset<String> ds = spark.createDataset(jsonData, Encoders.STRING());
         // schema
-        //Dataset<Row> df = spark.read().schema(mySchema).json(_df);
+        // Dataset<Row> df = spark.read().schema(mySchema).json(_df);
         Dataset<Row> df = spark.read().json(ds);
         df.write()
                 .mode(SaveMode.Append)
@@ -217,5 +218,3 @@ public class SparkMapDbBatchRecordWriter implements BatchRecordWriter, AutoClose
         }
     }
 }
-
-
