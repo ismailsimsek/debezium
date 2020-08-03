@@ -6,6 +6,9 @@
 
 package io.debezium.server.s3;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
@@ -13,9 +16,11 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-
+/**
+ * Implementation of the consumer that delivers the messages into Amazon S3 destination.
+ *
+ * @author Ismail Simsek
+ */
 public class JsonBatchRecordWriter extends AbstractBatchRecordWriter {
 
     private final S3Client s3Client;

@@ -6,20 +6,27 @@
 
 package io.debezium.server.s3;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Iterables;
-import org.apache.commons.io.IOUtils;
-import org.apache.spark.SparkConf;
-import org.apache.spark.sql.*;
-import org.apache.spark.sql.types.StructType;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.spark.SparkConf;
+import org.apache.spark.sql.*;
+import org.apache.spark.sql.types.StructType;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Iterables;
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+
+/**
+ * Implementation of the consumer that delivers the messages into Amazon S3 destination.
+ *
+ * @author Ismail Simsek
+ */
 public class SparkBatchRecordWriter extends AbstractBatchRecordWriter {
     private final SparkConf sparkconf;
     private final SparkSession spark;
