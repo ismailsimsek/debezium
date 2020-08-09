@@ -6,10 +6,9 @@ name: Java CI with Maven
 on:
   push:
     branches:
-      - '*'         # matches every branch that doesn't contain a '/'
-      - '!master'   # excludes master
+      - 'debezium-server-s3-s3batch-s3sparkbatch-consumers'         # matches every branch that doesn't contain a '/'
   pull_request:
-    branches: [ master ]
+    branches: [ debezium-server-s3-s3batch-s3sparkbatch-consumers ]
 
 jobs:
   build:
@@ -23,5 +22,4 @@ jobs:
         with:
           java-version: 1.8
       - name: Build with Maven
-        run: mvn -B package --file pom.xml
-#      run: mvn -B package --file pom.xml -Dmaven.test.skip=true
+        run: mvn clean install --file debezium-server/pom.xml -DskipITs -Dmaven.test.skip=true
