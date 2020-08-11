@@ -56,6 +56,8 @@ public class SparkBatchRecordWriter extends AbstractBatchRecordWriter {
         // spark.sparkContext().setLogLevel("WARN");
 
         LOGGER.info("Starting S3 Spark Consumer({})", this.getClass().getName());
+        LOGGER.info("Spark save format is '{}'", saveFormat);
+
     }
 
     private void initSparkconf() {
