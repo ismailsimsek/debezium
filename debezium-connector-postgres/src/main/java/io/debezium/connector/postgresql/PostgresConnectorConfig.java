@@ -903,7 +903,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withDefault("__debezium_unavailable_value")
             .withImportance(Importance.MEDIUM)
             .withDescription("Specify the constant that will be provided by Debezium to indicate that " +
-                    "the original value is a toasted value not provided by the database." +
+                    "the original value is a toasted value not provided by the database. " +
                     "If starts with 'hex:' prefix it is expected that the rest of the string repesents hexadecimally encoded octets.");
 
     private final HStoreHandlingMode hStoreHandlingMode;
@@ -911,7 +911,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
     private final SnapshotMode snapshotMode;
     private final SchemaRefreshMode schemaRefreshMode;
 
-    protected PostgresConnectorConfig(Configuration config) {
+    public PostgresConnectorConfig(Configuration config) {
         super(
                 config,
                 config.getString(RelationalDatabaseConnectorConfig.SERVER_NAME),
@@ -935,7 +935,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return getConfig().getInteger(PORT);
     }
 
-    protected String databaseName() {
+    public String databaseName() {
         return getConfig().getString(DATABASE_NAME);
     }
 
@@ -995,7 +995,7 @@ public class PostgresConnectorConfig extends RelationalDatabaseConnectorConfig {
         return getConfig().subset(DATABASE_CONFIG_PREFIX, true);
     }
 
-    protected Map<String, ConfigValue> validate() {
+    public Map<String, ConfigValue> validate() {
         return getConfig().validate(ALL_FIELDS);
     }
 

@@ -23,8 +23,10 @@ import org.postgresql.util.PSQLState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.annotation.VisibleForTesting;
 import io.debezium.config.Configuration;
+import io.debezium.connector.postgresql.PostgresConnectorConfig;
 import io.debezium.connector.postgresql.PostgresType;
 import io.debezium.connector.postgresql.TypeRegistry;
 import io.debezium.connector.postgresql.spi.SlotState;
@@ -50,7 +52,7 @@ public class PostgresConnection extends JdbcConnection {
             + JdbcConfiguration.PORT + "}/${" + JdbcConfiguration.DATABASE + "}";
     protected static final ConnectionFactory FACTORY = JdbcConnection.patternBasedFactory(URL_PATTERN,
             org.postgresql.Driver.class.getName(),
-            PostgresConnection.class.getClassLoader());
+            PostgresConnection.class.getClassLoader(), JdbcConfiguration.PORT.withDefault(PostgresConnectorConfig.PORT.defaultValueAsString()));
 
     /**
      * Obtaining a replication slot may fail if there's a pending transaction. We're retrying to get a slot for 30 min.
@@ -60,8 +62,6 @@ public class PostgresConnection extends JdbcConnection {
     private static final Duration PAUSE_BETWEEN_REPLICATION_SLOT_RETRIEVAL_ATTEMPTS = Duration.ofSeconds(2);
 
     private final TypeRegistry typeRegistry;
-
-    private final Charset databaseCharset;
 
     /**
      * Creates a Postgres connection using the supplied configuration.
@@ -74,7 +74,6 @@ public class PostgresConnection extends JdbcConnection {
     public PostgresConnection(Configuration config, boolean provideTypeRegistry) {
         super(config, FACTORY, PostgresConnection::validateServerVersion, PostgresConnection::defaultSettings);
         this.typeRegistry = provideTypeRegistry ? new TypeRegistry(this) : null;
-        databaseCharset = determineDatabaseCharset();
     }
 
     /**
@@ -423,15 +422,11 @@ public class PostgresConnection extends JdbcConnection {
     }
 
     public Charset getDatabaseCharset() {
-        return databaseCharset;
-    }
-
-    private Charset determineDatabaseCharset() {
         try {
             return Charset.forName(((BaseConnection) connection()).getEncoding().name());
         }
         catch (SQLException e) {
-            throw new RuntimeException("Couldn't obtain encoding for database " + database(), e);
+            throw new DebeziumException("Couldn't obtain encoding for database " + database(), e);
         }
     }
 
