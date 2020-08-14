@@ -110,8 +110,9 @@ public class ByLogicalTableRouter<R extends ConnectRecord<R>> implements Transfo
             .withDescription("The replacement string used in conjunction with " + KEY_FIELD_REGEX.name() +
                     ". This will be used to create the physical table identifier in the record's key.");
 
-    private static final Logger logger = LoggerFactory.getLogger(ByLogicalTableRouter.class);
-    private final SchemaNameAdjuster schemaNameAdjuster = SchemaNameAdjuster.create(logger);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ByLogicalTableRouter.class);
+
+    private final SchemaNameAdjuster schemaNameAdjuster = SchemaNameAdjuster.create(LOGGER);
     private Pattern topicRegex;
     private String topicReplacement;
     private Pattern keyFieldRegex;
@@ -122,6 +123,7 @@ public class ByLogicalTableRouter<R extends ConnectRecord<R>> implements Transfo
     private final Cache<Schema, Schema> envelopeSchemaUpdateCache = new SynchronizedCache<>(new LRUCache<Schema, Schema>(16));
     private final Cache<String, String> keyRegexReplaceCache = new SynchronizedCache<>(new LRUCache<String, String>(16));
     private final Cache<String, String> topicRegexReplaceCache = new SynchronizedCache<>(new LRUCache<String, String>(16));
+    private SmtManager<R> smtManager;
 
     /**
      * If KEY_FIELD_REGEX has a value that is really a regex, then the KEY_FIELD_REPLACEMENT must be a non-empty value.
@@ -161,7 +163,7 @@ public class ByLogicalTableRouter<R extends ConnectRecord<R>> implements Transfo
                 KEY_FIELD_REGEX,
                 KEY_FIELD_REPLACEMENT);
 
-        if (!config.validateAndRecord(configFields, logger::error)) {
+        if (!config.validateAndRecord(configFields, LOGGER::error)) {
             throw new ConnectException("Unable to validate config.");
         }
 
@@ -178,6 +180,8 @@ public class ByLogicalTableRouter<R extends ConnectRecord<R>> implements Transfo
         }
         keyFieldName = config.getString(KEY_FIELD_NAME);
         keyEnforceUniqueness = config.getBoolean(KEY_ENFORCE_UNIQUENESS);
+
+        smtManager = new SmtManager<>(config);
     }
 
     @Override
@@ -189,7 +193,12 @@ public class ByLogicalTableRouter<R extends ConnectRecord<R>> implements Transfo
             return record;
         }
 
-        logger.debug("Applying topic name transformation from {} to {}", oldTopic, newTopic);
+        if (newTopic.isEmpty()) {
+            LOGGER.warn("Routing regex returned an empty topic name, propagating original record");
+            return record;
+        }
+
+        LOGGER.debug("Applying topic name transformation from {} to {}", oldTopic, newTopic);
 
         Schema newKeySchema = null;
         Struct newKey = null;
@@ -201,7 +210,9 @@ public class ByLogicalTableRouter<R extends ConnectRecord<R>> implements Transfo
             newKey = updateKey(newKeySchema, oldKey, oldTopic);
         }
 
-        if (record.value() == null) {
+        // In case of tombstones or non-CDC events (heartbeats, schema change events),
+        // leave the value as-is
+        if (record.value() == null || !smtManager.isValidEnvelope(record)) {
             // Value will be null in the case of a delete event tombstone
             return record.newRecord(
                     newTopic,
