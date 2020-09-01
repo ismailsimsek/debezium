@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/debezium-api/debezium-api.iml" filepath="$PROJECT_DIR$/debezium-api/debezium-api.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-assembly-descriptors/debezium-assembly-descriptors.iml" filepath="$PROJECT_DIR$/debezium-assembly-descriptors/debezium-assembly-descriptors.iml" />
+      <module fileurl="file://$PROJECT_DIR$/support/checkstyle/debezium-checkstyle.iml" filepath="$PROJECT_DIR$/support/checkstyle/debezium-checkstyle.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-connector-mongodb/debezium-connector-mongodb.iml" filepath="$PROJECT_DIR$/debezium-connector-mongodb/debezium-connector-mongodb.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-connector-mysql/debezium-connector-mysql.iml" filepath="$PROJECT_DIR$/debezium-connector-mysql/debezium-connector-mysql.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-connector-postgres/debezium-connector-postgres.iml" filepath="$PROJECT_DIR$/debezium-connector-postgres/debezium-connector-postgres.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-connector-sqlserver/debezium-connector-sqlserver.iml" filepath="$PROJECT_DIR$/debezium-connector-sqlserver/debezium-connector-sqlserver.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-core/debezium-core.iml" filepath="$PROJECT_DIR$/debezium-core/debezium-core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-ddl-parser/debezium-ddl-parser.iml" filepath="$PROJECT_DIR$/debezium-ddl-parser/debezium-ddl-parser.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-embedded/debezium-embedded.iml" filepath="$PROJECT_DIR$/debezium-embedded/debezium-embedded.iml" />
+      <module fileurl="file://$PROJECT_DIR$/support/ide-configs/debezium-ide-configs.iml" filepath="$PROJECT_DIR$/support/ide-configs/debezium-ide-configs.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-microbenchmark/debezium-microbenchmark.iml" filepath="$PROJECT_DIR$/debezium-microbenchmark/debezium-microbenchmark.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-parent.iml" filepath="$PROJECT_DIR$/debezium-parent.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-quarkus-outbox/runtime/debezium-quarkus-outbox.iml" filepath="$PROJECT_DIR$/debezium-quarkus-outbox/runtime/debezium-quarkus-outbox.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-quarkus-outbox/deployment/debezium-quarkus-outbox-deployment.iml" filepath="$PROJECT_DIR$/debezium-quarkus-outbox/deployment/debezium-quarkus-outbox-deployment.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-quarkus-outbox/integration-tests/debezium-quarkus-outbox-integration-tests.iml" filepath="$PROJECT_DIR$/debezium-quarkus-outbox/integration-tests/debezium-quarkus-outbox-integration-tests.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-quarkus-outbox/debezium-quarkus-outbox-parent.iml" filepath="$PROJECT_DIR$/debezium-quarkus-outbox/debezium-quarkus-outbox-parent.iml" />
+      <module fileurl="file://$PROJECT_DIR$/support/revapi/debezium-revapi.iml" filepath="$PROJECT_DIR$/support/revapi/debezium-revapi.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-scripting/debezium-scripting.iml" filepath="$PROJECT_DIR$/debezium-scripting/debezium-scripting.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-core/debezium-server-core.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-core/debezium-server-core.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-dist/debezium-server-dist.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-dist/debezium-server-dist.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-eventhubs/debezium-server-eventhubs.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-eventhubs/debezium-server-eventhubs.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-kinesis/debezium-server-kinesis.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-kinesis/debezium-server-kinesis.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-pubsub/debezium-server-pubsub.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-pubsub/debezium-server-pubsub.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-pulsar/debezium-server-pulsar.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-pulsar/debezium-server-pulsar.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-s3/debezium-server-s3.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-s3/debezium-server-s3.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-testing/debezium-testing.iml" filepath="$PROJECT_DIR$/debezium-testing/debezium-testing.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-testing/debezium-testing-openshift/debezium-testing-openshift.iml" filepath="$PROJECT_DIR$/debezium-testing/debezium-testing-openshift/debezium-testing-openshift.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-testing/debezium-testing-testcontainers/debezium-testing-testcontainers.iml" filepath="$PROJECT_DIR$/debezium-testing/debezium-testing-testcontainers/debezium-testing-testcontainers.iml" />
+    </modules>
+  </component>
+</project>

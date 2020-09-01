@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <option name="USE_RELEASE_OPTION" value="false" />
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="debezium-core" />
+        <module name="debezium-server-s3" />
+        <module name="debezium-revapi" />
+        <module name="debezium-server-eventhubs" />
+        <module name="debezium-server-kinesis" />
+        <module name="debezium-testing-testcontainers" />
+        <module name="debezium-testing-openshift" />
+        <module name="debezium-connector-mongodb" />
+        <module name="debezium-server-pubsub" />
+        <module name="debezium-scripting" />
+        <module name="debezium-checkstyle" />
+        <module name="debezium-api" />
+        <module name="debezium-server-pulsar" />
+        <module name="debezium-embedded" />
+        <module name="debezium-connector-mysql" />
+        <module name="debezium-assembly-descriptors" />
+        <module name="debezium-connector-sqlserver" />
+        <module name="debezium-server-core" />
+        <module name="debezium-connector-postgres" />
+        <module name="debezium-quarkus-outbox-integration-tests" />
+        <module name="debezium-ddl-parser" />
+        <module name="debezium-microbenchmark" />
+        <module name="debezium-ide-configs" />
+        <module name="debezium-server-dist" />
+      </profile>
+      <profile name="Annotation profile for Debezium Parent POM" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/io/quarkus/quarkus-extension-processor/1.7.1.Final/quarkus-extension-processor-1.7.1.Final.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jboss/jdeparser/jdeparser/2.0.2.Final/jdeparser-2.0.2.Final.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jsoup/jsoup/1.12.1/jsoup-1.12.1.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/javaparser/javaparser-core/3.14.10/javaparser-core-3.14.10.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/fasterxml/jackson/core/jackson-databind/2.11.2/jackson-databind-2.11.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/fasterxml/jackson/core/jackson-annotations/2.11.2/jackson-annotations-2.11.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/fasterxml/jackson/core/jackson-core/2.11.2/jackson-core-2.11.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter/5.6.2/junit-jupiter-5.6.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-api/5.6.2/junit-jupiter-api-5.6.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/apiguardian/apiguardian-api/1.1.0/apiguardian-api-1.1.0.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/opentest4j/opentest4j/1.2.0/opentest4j-1.2.0.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/junit/platform/junit-platform-commons/1.6.2/junit-platform-commons-1.6.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-params/5.6.2/junit-jupiter-params-5.6.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-engine/5.6.2/junit-jupiter-engine-5.6.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/junit/platform/junit-platform-engine/1.6.2/junit-platform-engine-1.6.2.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/asciidoctor/asciidoctorj/2.3.0/asciidoctorj-2.3.0.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/asciidoctor/asciidoctorj-api/2.3.0/asciidoctorj-api-2.3.0.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jruby/jruby/9.2.11.1/jruby-9.2.11.1.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jruby/jruby-core/9.2.11.1/jruby-core-9.2.11.1.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/jnr/jnr-netdb/1.1.6/jnr-netdb-1.1.6.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/jnr/jnr-enxio/0.25/jnr-enxio-0.25.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/jnr/jnr-constants/0.9.15/jnr-constants-0.9.15.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/jnr/jnr-unixsocket/0.28/jnr-unixsocket-0.28.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/jnr/jnr-posix/3.0.54/jnr-posix-3.0.54.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/jnr/jffi/1.2.23/jffi-1.2.23.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/github/jnr/jffi/1.2.23/jffi-1.2.23-native.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jruby/joni/joni/2.1.31/joni-2.1.31.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jruby/jcodings/jcodings/1.0.46/jcodings-1.0.46.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jruby/dirgra/0.3/dirgra-0.3.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/headius/invokebinder/1.11/invokebinder-1.11.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/headius/options/1.4/options-1.4.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/jcraft/jzlib/1.1.3/jzlib-1.1.3.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/martiansoftware/nailgun-server/0.9.1/nailgun-server-0.9.1.jar" />
+          <entry name="$MAVEN_REPOSITORY$/joda-time/joda-time/2.10.5/joda-time-2.10.5.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/headius/backport9/1.3/backport9-1.3.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/jruby/jruby-stdlib/9.2.11.1/jruby-stdlib-9.2.11.1.jar" />
+          <entry name="$MAVEN_REPOSITORY$/com/beust/jcommander/1.72/jcommander-1.72.jar" />
+        </processorPath>
+        <module name="debezium-quarkus-outbox" />
+        <module name="debezium-quarkus-outbox-deployment" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="debezium-api" target="1.8" />
+      <module name="debezium-assembly-descriptors" target="1.8" />
+      <module name="debezium-checkstyle" target="1.8" />
+      <module name="debezium-connector-mongodb" target="1.8" />
+      <module name="debezium-connector-mysql" target="1.8" />
+      <module name="debezium-connector-postgres" target="1.8" />
+      <module name="debezium-connector-sqlserver" target="1.8" />
+      <module name="debezium-core" target="1.8" />
+      <module name="debezium-ddl-parser" target="1.8" />
+      <module name="debezium-embedded" target="1.8" />
+      <module name="debezium-ide-configs" target="1.8" />
+      <module name="debezium-microbenchmark" target="1.8" />
+      <module name="debezium-parent" target="1.8" />
+      <module name="debezium-quarkus-outbox" target="1.8" />
+      <module name="debezium-quarkus-outbox-deployment" target="1.8" />
+      <module name="debezium-quarkus-outbox-integration-tests" target="1.8" />
+      <module name="debezium-quarkus-outbox-parent" target="1.8" />
+      <module name="debezium-revapi" target="1.8" />
+      <module name="debezium-scripting" target="1.8" />
+      <module name="debezium-server" target="1.8" />
+      <module name="debezium-server-core" target="1.8" />
+      <module name="debezium-server-dist" target="1.8" />
+      <module name="debezium-server-eventhubs" target="1.8" />
+      <module name="debezium-server-kinesis" target="1.8" />
+      <module name="debezium-server-pubsub" target="1.8" />
+      <module name="debezium-server-pulsar" target="1.8" />
+      <module name="debezium-server-s3" target="1.8" />
+      <module name="debezium-testing" target="1.8" />
+      <module name="debezium-testing-openshift" target="1.8" />
+      <module name="debezium-testing-testcontainers" target="1.8" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="debezium-api" options="-Xlint:unchecked" />
+      <module name="debezium-assembly-descriptors" options="-Xlint:unchecked" />
+      <module name="debezium-checkstyle" options="-Xlint:unchecked" />
+      <module name="debezium-connector-mongodb" options="-Xlint:unchecked" />
+      <module name="debezium-connector-mysql" options="-Xlint:unchecked" />
+      <module name="debezium-connector-postgres" options="-Xlint:unchecked" />
+      <module name="debezium-connector-sqlserver" options="-Xlint:unchecked" />
+      <module name="debezium-core" options="-Xlint:unchecked" />
+      <module name="debezium-ddl-parser" options="-Xlint:unchecked" />
+      <module name="debezium-embedded" options="-Xlint:unchecked" />
+      <module name="debezium-ide-configs" options="-Xlint:unchecked" />
+      <module name="debezium-microbenchmark" options="-Xlint:unchecked" />
+      <module name="debezium-quarkus-outbox" options="-Xlint:unchecked" />
+      <module name="debezium-quarkus-outbox-deployment" options="-Xlint:unchecked" />
+      <module name="debezium-quarkus-outbox-integration-tests" options="-Xlint:unchecked" />
+      <module name="debezium-revapi" options="-Xlint:unchecked" />
+      <module name="debezium-scripting" options="-Xlint:unchecked" />
+      <module name="debezium-server-core" options="-Xlint:unchecked" />
+      <module name="debezium-server-dist" options="-Xlint:unchecked" />
+      <module name="debezium-server-eventhubs" options="-Xlint:unchecked" />
+      <module name="debezium-server-kinesis" options="-Xlint:unchecked" />
+      <module name="debezium-server-pubsub" options="-Xlint:unchecked" />
+      <module name="debezium-server-pulsar" options="-Xlint:unchecked" />
+      <module name="debezium-server-s3" options="-Xlint:unchecked" />
+      <module name="debezium-testing-openshift" options="-Xlint:unchecked" />
+      <module name="debezium-testing-testcontainers" options="-Xlint:unchecked" />
+    </option>
+  </component>
+</project>
