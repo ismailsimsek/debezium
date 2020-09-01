@@ -9,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -316,7 +317,7 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             LOGGER.warn("No table has enabled CDC or security constraints prevents getting the list of change tables");
         }
 
-        final Map<TableId, List<SqlServerChangeTable>> whitelistedCdcEnabledTables = cdcEnabledTables.stream()
+        final Map<TableId, List<SqlServerChangeTable>> includeListCdcEnabledTables = cdcEnabledTables.stream()
                 .filter(changeTable -> {
                     if (connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(changeTable.getSourceTableId())) {
                         return true;
@@ -328,13 +329,13 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
                 })
                 .collect(Collectors.groupingBy(x -> x.getSourceTableId()));
 
-        if (whitelistedCdcEnabledTables.isEmpty()) {
+        if (includeListCdcEnabledTables.isEmpty()) {
             LOGGER.warn(
                     "No whitelisted table has enabled CDC, whitelisted table list does not contain any table with CDC enabled or no table match the white/blacklist filter(s)");
         }
 
         final List<SqlServerChangeTable> tables = new ArrayList<>();
-        for (List<SqlServerChangeTable> captures : whitelistedCdcEnabledTables.values()) {
+        for (List<SqlServerChangeTable> captures : includeListCdcEnabledTables.values()) {
             SqlServerChangeTable currentTable = captures.get(0);
             if (captures.size() > 1) {
                 SqlServerChangeTable futureTable;
@@ -352,6 +353,10 @@ public class SqlServerStreamingChangeEventSource implements StreamingChangeEvent
             if (schema.tableFor(currentTable.getSourceTableId()) == null) {
                 LOGGER.info("Table {} is new to be monitored by capture instance {}", currentTable.getSourceTableId(), currentTable.getCaptureInstance());
                 // We need to read the source table schema - nullability information cannot be obtained from change table
+                // There might be no start LSN in the new change table at this time so current timestamp is used
+                offsetContext.event(
+                        currentTable.getSourceTableId(),
+                        Instant.now());
                 dispatcher.dispatchSchemaChangeEvent(
                         currentTable.getSourceTableId(),
                         new SqlServerSchemaChangeEventEmitter(

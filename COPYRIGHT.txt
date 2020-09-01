@@ -35,6 +35,7 @@ Ben Williams
 Bin Li
 Bingqin Zhou
 Björn Häuser
+Bob Roldan
 Braden Groom
 Braden Staudacher
 Brandon Brown
@@ -144,6 +145,7 @@ Matthias Wessendorf
 Max Kaplan
 Melissa Winstanley
 Michael Wang
+Mickaël Isaert
 Mike Graham
 Mincong Huang
 Moira Tagle

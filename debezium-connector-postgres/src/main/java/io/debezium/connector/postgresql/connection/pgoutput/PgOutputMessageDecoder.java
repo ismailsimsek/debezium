@@ -33,6 +33,7 @@ import io.debezium.connector.postgresql.TypeRegistry;
 import io.debezium.connector.postgresql.UnchangedToastedReplicationMessageColumn;
 import io.debezium.connector.postgresql.connection.AbstractMessageDecoder;
 import io.debezium.connector.postgresql.connection.AbstractReplicationMessageColumn;
+import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.connection.MessageDecoderConfig;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ReplicationMessage.Column;
@@ -40,6 +41,7 @@ import io.debezium.connector.postgresql.connection.ReplicationMessage.NoopMessag
 import io.debezium.connector.postgresql.connection.ReplicationMessage.Operation;
 import io.debezium.connector.postgresql.connection.ReplicationStream.ReplicationMessageProcessor;
 import io.debezium.connector.postgresql.connection.TransactionMessage;
+import io.debezium.connector.postgresql.connection.WalPositionLocator;
 import io.debezium.relational.ColumnEditor;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
@@ -107,13 +109,14 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
     }
 
     @Override
-    public boolean shouldMessageBeSkipped(ByteBuffer buffer, Long lastReceivedLsn, Long startLsn, boolean skipFirstFlushRecord) {
+    public boolean shouldMessageBeSkipped(ByteBuffer buffer, Lsn lastReceivedLsn, Lsn startLsn, WalPositionLocator walPosition) {
         // Cache position as we're going to peak at the first byte to determine message type
         // We need to reprocess all BEGIN/COMMIT messages regardless.
         int position = buffer.position();
         try {
             MessageType type = MessageType.forType((char) buffer.get());
             LOGGER.trace("Message Type: {}", type);
+            final boolean candidateForSkipping = super.shouldMessageBeSkipped(buffer, lastReceivedLsn, startLsn, walPosition);
             switch (type) {
                 case TRUNCATE:
                     // @formatter:off
@@ -149,7 +152,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
                 default:
                     // INSERT/UPDATE/DELETE/TYPE/ORIGIN
                     // These should be excluded based on the normal behavior, delegating to default method
-                    return super.shouldMessageBeSkipped(buffer, lastReceivedLsn, startLsn, skipFirstFlushRecord);
+                    return candidateForSkipping;
             }
         }
         finally {
@@ -217,7 +220,7 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
      * @param processor The replication message processor
      */
     private void handleBeginMessage(ByteBuffer buffer, ReplicationMessageProcessor processor) throws SQLException, InterruptedException {
-        long lsn = buffer.getLong(); // LSN
+        final Lsn lsn = Lsn.valueOf(buffer.getLong()); // LSN
         this.commitTimestamp = PG_EPOCH.plus(buffer.getLong(), ChronoUnit.MICROS);
         this.transactionId = buffer.getInt();
         LOGGER.trace("Event: {}", MessageType.BEGIN);
@@ -235,8 +238,8 @@ public class PgOutputMessageDecoder extends AbstractMessageDecoder {
      */
     private void handleCommitMessage(ByteBuffer buffer, ReplicationMessageProcessor processor) throws SQLException, InterruptedException {
         int flags = buffer.get(); // flags, currently unused
-        long lsn = buffer.getLong(); // LSN of the commit
-        long endLsn = buffer.getLong(); // End LSN of the transaction
+        final Lsn lsn = Lsn.valueOf(buffer.getLong()); // LSN of the commit
+        final Lsn endLsn = Lsn.valueOf(buffer.getLong()); // End LSN of the transaction
         Instant commitTimestamp = PG_EPOCH.plus(buffer.getLong(), ChronoUnit.MICROS);
         LOGGER.trace("Event: {}", MessageType.COMMIT);
         LOGGER.trace("Flags: {} (currently unused and most likely 0)", flags);

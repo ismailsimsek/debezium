@@ -22,14 +22,12 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.connect.errors.ConnectException;
 import org.postgresql.core.BaseConnection;
 import org.postgresql.core.ServerVersion;
-import org.postgresql.replication.LogSequenceNumber;
 import org.postgresql.replication.PGReplicationStream;
 import org.postgresql.replication.fluent.logical.ChainedLogicalStreamBuilder;
 import org.postgresql.util.PSQLException;
@@ -72,7 +70,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
     private final TypeRegistry typeRegistry;
     private final Properties streamParams;
 
-    private long defaultStartingPos;
+    private Lsn defaultStartingPos;
     private SlotCreationResult slotCreationInfo;
     private boolean hasInitedSlot;
 
@@ -219,21 +217,18 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                 this.createReplicationSlot();
             }
 
-            AtomicLong xlogStart = new AtomicLong();
             // replication connection does not support parsing of SQL statements so we need to create
             // the connection without executing on connect statements - see JDBC opt preferQueryMode=simple
             pgConnection();
-            execute(statement -> {
-                String identifySystemStatement = "IDENTIFY_SYSTEM";
-                LOGGER.debug("running '{}' to validate replication connection", identifySystemStatement);
-                try (ResultSet rs = statement.executeQuery(identifySystemStatement)) {
-                    if (!rs.next()) {
-                        throw new IllegalStateException("The DB connection is not a valid replication connection");
-                    }
-                    String xlogpos = rs.getString("xlogpos");
-                    LOGGER.debug("received latest xlogpos '{}'", xlogpos);
-                    xlogStart.compareAndSet(0, LogSequenceNumber.valueOf(xlogpos).asLong());
+            final String identifySystemStatement = "IDENTIFY_SYSTEM";
+            LOGGER.debug("running '{}' to validate replication connection", identifySystemStatement);
+            final Lsn xlogStart = queryAndMap(identifySystemStatement, rs -> {
+                if (!rs.next()) {
+                    throw new IllegalStateException("The DB connection is not a valid replication connection");
                 }
+                String xlogpos = rs.getString("xlogpos");
+                LOGGER.debug("received latest xlogpos '{}'", xlogpos);
+                return Lsn.valueOf(xlogpos);
             });
 
             if (slotCreationInfo != null) {
@@ -241,13 +236,13 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             }
             else if (shouldCreateSlot || !slotInfo.hasValidFlushedLsn()) {
                 // this is a new slot or we weren't able to read a valid flush LSN pos, so we always start from the xlog pos that was reported
-                this.defaultStartingPos = xlogStart.get();
+                this.defaultStartingPos = xlogStart;
             }
             else {
-                Long latestFlushedLsn = slotInfo.latestFlushedLsn();
-                this.defaultStartingPos = latestFlushedLsn < xlogStart.get() ? latestFlushedLsn : xlogStart.get();
+                Lsn latestFlushedLsn = slotInfo.latestFlushedLsn();
+                this.defaultStartingPos = latestFlushedLsn.compareTo(xlogStart) < 0 ? latestFlushedLsn : xlogStart;
                 if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("found previous flushed LSN '{}'", ReplicationConnection.format(latestFlushedLsn));
+                    LOGGER.debug("found previous flushed LSN '{}'", latestFlushedLsn);
                 }
             }
             hasInitedSlot = true;
@@ -259,7 +254,10 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
     // Temporary replication slots is a new feature of PostgreSQL 10
     private boolean useTemporarySlot() throws SQLException {
-        return dropSlotOnClose && pgConnection().haveMinimumServerVersion(ServerVersion.v10);
+        // Temporary replication slots cannot be used due to connection restart
+        // when finding WAL position
+        // return dropSlotOnClose && pgConnection().haveMinimumServerVersion(ServerVersion.v10);
+        return false;
     }
 
     /**
@@ -282,27 +280,25 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
      * @throws InterruptedException
      */
     @Override
-    public ReplicationStream startStreaming() throws SQLException, InterruptedException {
-        return startStreaming(null);
+    public ReplicationStream startStreaming(WalPositionLocator walPosition) throws SQLException, InterruptedException {
+        return startStreaming(null, walPosition);
     }
 
     @Override
-    public ReplicationStream startStreaming(Long offset) throws SQLException, InterruptedException {
-        boolean skipFirstFlushRecord = true;
+    public ReplicationStream startStreaming(Lsn offset, WalPositionLocator walPosition) throws SQLException, InterruptedException {
         initConnection();
 
         connect();
-        if (offset == null || offset <= 0) {
+        if (offset == null || !offset.isValid()) {
             offset = defaultStartingPos;
-            skipFirstFlushRecord = false;
         }
-        LogSequenceNumber lsn = LogSequenceNumber.valueOf(offset);
+        Lsn lsn = offset;
         if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("starting streaming from LSN '{}'", lsn.asString());
+            LOGGER.debug("starting streaming from LSN '{}'", lsn);
         }
 
         try {
-            return createReplicationStream(lsn, skipFirstFlushRecord);
+            return createReplicationStream(lsn, walPosition);
         }
         catch (Exception e) {
             String message = "Failed to start replication stream at " + lsn;
@@ -387,7 +383,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         }
     }
 
-    private ReplicationStream createReplicationStream(final LogSequenceNumber startLsn, boolean skipFirstFlushRecord) throws SQLException, InterruptedException {
+    private ReplicationStream createReplicationStream(final Lsn startLsn, WalPositionLocator walPosition) throws SQLException, InterruptedException {
         PGReplicationStream s;
 
         try {
@@ -436,7 +432,6 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         }
 
         final PGReplicationStream stream = s;
-        final long startingLsn = startLsn.asLong();
 
         return new ReplicationStream() {
 
@@ -447,14 +442,14 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             private final Metronome metronome = Metronome.sleeper(statusUpdateInterval, Clock.SYSTEM);
 
             // make sure this is volatile since multiple threads may be interested in this value
-            private volatile LogSequenceNumber lastReceivedLsn;
+            private volatile Lsn lastReceivedLsn;
 
             @Override
             public void read(ReplicationMessageProcessor processor) throws SQLException, InterruptedException {
                 ByteBuffer read = stream.read();
-                final long lastReceiveLsn = stream.getLastReceiveLSN().asLong();
-                LOGGER.trace("Streaming requested from LSN {}, received LSN {}", startingLsn, lastReceiveLsn);
-                if (messageDecoder.shouldMessageBeSkipped(read, lastReceiveLsn, startingLsn, skipFirstFlushRecord)) {
+                final Lsn lastReceiveLsn = Lsn.valueOf(stream.getLastReceiveLSN());
+                LOGGER.trace("Streaming requested from LSN {}, received LSN {}", startLsn, lastReceiveLsn);
+                if (messageDecoder.shouldMessageBeSkipped(read, lastReceiveLsn, startLsn, walPosition)) {
                     return;
                 }
                 deserializeMessages(read, processor);
@@ -463,14 +458,14 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             @Override
             public boolean readPending(ReplicationMessageProcessor processor) throws SQLException, InterruptedException {
                 ByteBuffer read = stream.readPending();
-                final long lastReceiveLsn = stream.getLastReceiveLSN().asLong();
-                LOGGER.trace("Streaming requested from LSN {}, received LSN {}", startingLsn, lastReceiveLsn);
+                final Lsn lastReceiveLsn = Lsn.valueOf(stream.getLastReceiveLSN());
+                LOGGER.trace("Streaming requested from LSN {}, received LSN {}", startLsn, lastReceiveLsn);
 
                 if (read == null) {
                     return false;
                 }
 
-                if (messageDecoder.shouldMessageBeSkipped(read, lastReceiveLsn, startingLsn, skipFirstFlushRecord)) {
+                if (messageDecoder.shouldMessageBeSkipped(read, lastReceiveLsn, startLsn, walPosition)) {
                     return true;
                 }
 
@@ -480,7 +475,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             }
 
             private void deserializeMessages(ByteBuffer buffer, ReplicationMessageProcessor processor) throws SQLException, InterruptedException {
-                lastReceivedLsn = stream.getLastReceiveLSN();
+                lastReceivedLsn = Lsn.valueOf(stream.getLastReceiveLSN());
                 LOGGER.trace("Received message at LSN {}", lastReceivedLsn);
                 messageDecoder.processMessage(buffer, processor, typeRegistry);
             }
@@ -492,20 +487,20 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             }
 
             @Override
-            public void flushLsn(long lsn) throws SQLException {
-                doFlushLsn(LogSequenceNumber.valueOf(lsn));
+            public void flushLsn(Lsn lsn) throws SQLException {
+                doFlushLsn(lsn);
             }
 
-            private void doFlushLsn(LogSequenceNumber lsn) throws SQLException {
-                stream.setFlushedLSN(lsn);
-                stream.setAppliedLSN(lsn);
+            private void doFlushLsn(Lsn lsn) throws SQLException {
+                stream.setFlushedLSN(lsn.asLogSequenceNumber());
+                stream.setAppliedLSN(lsn.asLogSequenceNumber());
 
                 stream.forceUpdateStatus();
             }
 
             @Override
-            public Long lastReceivedLsn() {
-                return lastReceivedLsn != null ? lastReceivedLsn.asLong() : null;
+            public Lsn lastReceivedLsn() {
+                return lastReceivedLsn;
             }
 
             @Override
@@ -549,13 +544,13 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
             }
 
             @Override
-            public Long startLsn() {
-                return startingLsn;
+            public Lsn startLsn() {
+                return startLsn;
             }
         };
     }
 
-    private PGReplicationStream startPgReplicationStream(final LogSequenceNumber lsn, Function<ChainedLogicalStreamBuilder, ChainedLogicalStreamBuilder> configurator)
+    private PGReplicationStream startPgReplicationStream(final Lsn lsn, Function<ChainedLogicalStreamBuilder, ChainedLogicalStreamBuilder> configurator)
             throws SQLException {
         assert lsn != null;
         ChainedLogicalStreamBuilder streamBuilder = pgConnection()
@@ -563,7 +558,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                 .replicationStream()
                 .logical()
                 .withSlotName(slotName)
-                .withStartPosition(lsn)
+                .withStartPosition(lsn.asLogSequenceNumber())
                 .withSlotOptions(streamParams);
         streamBuilder = configurator.apply(streamBuilder);
 
@@ -586,6 +581,10 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
 
     @Override
     public synchronized void close() {
+        close(true);
+    }
+
+    public synchronized void close(boolean dropSlot) {
         try {
             LOGGER.debug("Closing replication connection");
             super.close();
@@ -593,7 +592,7 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
         catch (Throwable e) {
             LOGGER.error("Unexpected error while closing Postgres connection", e);
         }
-        if (dropSlotOnClose) {
+        if (dropSlotOnClose && dropSlot) {
             // we're dropping the replication slot via a regular - i.e. not a replication - connection
             try (PostgresConnection connection = new PostgresConnection(originalConfig)) {
                 connection.dropReplicationSlot(slotName);
@@ -602,6 +601,13 @@ public class PostgresReplicationConnection extends JdbcConnection implements Rep
                 LOGGER.error("Unexpected error while dropping replication slot", e);
             }
         }
+    }
+
+    @Override
+    public void reconnect() throws SQLException {
+        close(false);
+        // Don't re-execute initial commands on reconnection
+        connection(false);
     }
 
     protected static void defaultSettings(Configuration.Builder builder) {

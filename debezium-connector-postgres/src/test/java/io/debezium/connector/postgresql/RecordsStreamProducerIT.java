@@ -62,6 +62,7 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.IntervalHandlingMode;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.SchemaRefreshMode;
 import io.debezium.connector.postgresql.PostgresConnectorConfig.SnapshotMode;
+import io.debezium.connector.postgresql.connection.Lsn;
 import io.debezium.connector.postgresql.connection.PostgresConnection;
 import io.debezium.connector.postgresql.connection.ReplicationConnection.Builder;
 import io.debezium.connector.postgresql.junit.SkipTestDependingOnDecoderPluginNameRule;
@@ -126,7 +127,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
         Configuration.Builder configBuilder = TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
-                .with(PostgresConnectorConfig.SCHEMA_BLACKLIST, "postgis");
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis");
 
         // todo DBZ-766 are these really needed?
         if (TestHelper.decoderPlugin() == PostgresConnectorConfig.LogicalDecoder.PGOUTPUT) {
@@ -142,7 +143,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
             throws InterruptedException {
         start(PostgresConnector.class, new PostgresConnectorConfig(customConfig.apply(TestHelper.defaultConfig()
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
-                .with(PostgresConnectorConfig.SCHEMA_BLACKLIST, "postgis")
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis")
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, waitForSnapshot ? SnapshotMode.INITIAL : SnapshotMode.NEVER))
                 .build()).getConfig(), isStopRecord);
         assertConnectorIsRunning();
@@ -238,7 +239,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
         startConnector(config -> config
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.SCHEMA_BLACKLIST, "postgis"));
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis"));
 
         TestHelper.execute("CREATE TABLE t0 (pk SERIAL, d INTEGER, PRIMARY KEY(pk));");
 
@@ -260,7 +261,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
         // This appears to be a potential race condition problem
         startConnector(config -> config
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.SCHEMA_BLACKLIST, "postgis"),
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis"),
                 false);
         consumer = testConsumer(1);
         waitForStreamingToStart();
@@ -278,7 +279,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
         startConnector(config -> config
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.SCHEMA_BLACKLIST, "postgis")
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis")
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, false)
                 .with(PostgresConnectorConfig.SCHEMA_REFRESH_MODE, SchemaRefreshMode.COLUMNS_DIFF_EXCLUDE_UNCHANGED_TOAST));
 
@@ -306,7 +307,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
         // This appears to be a potential race condition problem
         startConnector(config -> config
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.SCHEMA_BLACKLIST, "postgis")
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis")
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, false)
                 .with(PostgresConnectorConfig.SCHEMA_REFRESH_MODE, SchemaRefreshMode.COLUMNS_DIFF_EXCLUDE_UNCHANGED_TOAST),
                 false);
@@ -416,7 +417,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
         startConnector(config -> config
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
-                .with(PostgresConnectorConfig.SCHEMA_BLACKLIST, "postgis")
+                .with(PostgresConnectorConfig.SCHEMA_EXCLUDE_LIST, "postgis")
                 .with(PostgresConnectorConfig.TIME_PRECISION_MODE, temporalMode));
 
         consumer.expects(1);
@@ -1217,7 +1218,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
         startConnector(config -> config
                 .with(Heartbeat.HEARTBEAT_INTERVAL, "100")
                 .with(PostgresConnectorConfig.POLL_INTERVAL_MS, "50")
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "s1\\.b")
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1\\.b")
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER),
                 false);
         waitForStreamingToStart();
@@ -1235,10 +1236,10 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
             // check if client's lsn is not flushed yet
             SlotState slotState = postgresConnection.getReplicationSlotState(Builder.DEFAULT_SLOT_NAME, TestHelper.decoderPlugin().getPostgresPluginName());
-            long flushLsn = slotState.slotLastFlushedLsn();
+            final Lsn flushLsn = slotState.slotLastFlushedLsn();
             // serverLsn is the latest server lsn and is equal to insert statement lsn
-            long serverLsn = postgresConnection.currentXLogLocation();
-            assertNotEquals("lsn should not be flushed until heartbeat is produced", serverLsn, flushLsn);
+            final Lsn serverLsn = Lsn.valueOf(postgresConnection.currentXLogLocation());
+            assertNotEquals("LSN should not be flushed until heartbeat is produced", serverLsn, flushLsn);
 
             TestHelper.execute(statement);
 
@@ -1254,8 +1255,8 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
             // check if flushed lsn is equal to or greater than server lsn
             SlotState slotStateAfterHeartbeat = postgresConnection.getReplicationSlotState(Builder.DEFAULT_SLOT_NAME, TestHelper.decoderPlugin().getPostgresPluginName());
-            long flushedLsn = slotStateAfterHeartbeat.slotLastFlushedLsn();
-            assertTrue("lsn should be flushed when heartbeat is produced", flushedLsn >= serverLsn);
+            final Lsn flushedLsn = slotStateAfterHeartbeat.slotLastFlushedLsn();
+            assertTrue("LSN should be flushed when heartbeat is produced", flushedLsn.compareTo(serverLsn) >= 0);
         }
     }
 
@@ -1265,7 +1266,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
         final LogInterceptor logInterceptor = new LogInterceptor();
         startConnector(config -> config
                 .with(PostgresConnectorConfig.POLL_INTERVAL_MS, "50")
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "s1\\.b")
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1\\.b")
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER),
                 false);
         waitForStreamingToStart();
@@ -1482,7 +1483,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
     @Test()
     @FixFor("DBZ-1130")
-    @SkipWhenDecoderPluginNameIsNot(value = WAL2JSON, reason = "WAL2JSON specific: Pass 'add-tables' stream parameter and verify it acts as a whitelist")
+    @SkipWhenDecoderPluginNameIsNot(value = WAL2JSON, reason = "WAL2JSON specific: Pass 'add-tables' stream parameter and verify it acts as an include list")
     public void testPassingStreamParams() throws Exception {
         // Verify that passing stream parameters works by using the WAL2JSON add-tables parameter which acts as a
         // whitelist.
@@ -1738,6 +1739,50 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
     }
 
     @Test
+    @FixFor("DBZ-2397")
+    @SkipWhenDecoderPluginNameIs(value = SkipWhenDecoderPluginNameIs.DecoderPluginName.WAL2JSON, reason = "wal2json cannot resume transaction in the middle of processing")
+    public void restartConnectorInTheMiddleOfUncommittedTx() throws Exception {
+        Testing.Print.enable();
+
+        final PostgresConnection tx1Connection = TestHelper.create();
+        tx1Connection.setAutoCommit(false);
+
+        final PostgresConnection tx2Connection = TestHelper.create();
+        tx2Connection.setAutoCommit(true);
+
+        startConnector(config -> config.with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, false), true);
+        waitForStreamingToStart();
+
+        tx1Connection.executeWithoutCommitting("INSERT INTO test_table (text) VALUES ('tx-1-1')");
+        tx2Connection.execute("INSERT INTO test_table (text) VALUES ('tx-2-1')");
+        consumer = testConsumer(1);
+        consumer.await(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS);
+        assertThat(((Struct) consumer.remove().value()).getStruct("after").getString("text")).isEqualTo("tx-2-1");
+
+        stopConnector();
+        startConnector(Function.identity(), false);
+        waitForStreamingToStart();
+
+        tx1Connection.executeWithoutCommitting("INSERT INTO test_table (text) VALUES ('tx-1-2')");
+        tx2Connection.execute("INSERT INTO test_table (text) VALUES ('tx-2-2')");
+
+        tx1Connection.executeWithoutCommitting("INSERT INTO test_table (text) VALUES ('tx-1-3')");
+        tx2Connection.execute("INSERT INTO test_table (text) VALUES ('tx-2-3')");
+
+        tx1Connection.commit();
+
+        consumer = testConsumer(5);
+        consumer.await(TestHelper.waitTimeForRecords(), TimeUnit.SECONDS);
+
+        assertThat(((Struct) consumer.remove().value()).getStruct("after").getString("text")).isEqualTo("tx-2-2");
+        assertThat(((Struct) consumer.remove().value()).getStruct("after").getString("text")).isEqualTo("tx-2-3");
+
+        assertThat(((Struct) consumer.remove().value()).getStruct("after").getString("text")).isEqualTo("tx-1-1");
+        assertThat(((Struct) consumer.remove().value()).getStruct("after").getString("text")).isEqualTo("tx-1-2");
+        assertThat(((Struct) consumer.remove().value()).getStruct("after").getString("text")).isEqualTo("tx-1-3");
+    }
+
+    @Test
     @FixFor("DBZ-1730")
     public void shouldStartConsumingFromSlotLocation() throws Exception {
         Testing.Print.enable();
@@ -1856,7 +1901,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL)
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.alias_table"),
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.alias_table"),
                 false);
 
         waitForStreamingToStart();
@@ -1885,7 +1930,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.alias_table")
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.alias_table")
                 .with("column.propagate.source.type", "public.alias_table.salary3"),
                 false);
 
@@ -1926,7 +1971,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.alias_table"),
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.alias_table"),
                 false);
 
         waitForStreamingToStart();
@@ -1958,7 +2003,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.alias_table")
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.alias_table")
                 .with("column.propagate.source.type", "public.alias_table.value"), false);
 
         waitForStreamingToStart();
@@ -1990,7 +2035,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.DECIMAL_HANDLING_MODE, DecimalHandlingMode.DOUBLE)
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.alias_table"),
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.alias_table"),
                 false);
 
         waitForStreamingToStart();
@@ -2149,7 +2194,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, true)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
                 .with("column.propagate.source.type", "public.enum_table.value")
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.enum_table"), false);
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.enum_table"), false);
 
         waitForStreamingToStart();
 
@@ -2184,7 +2229,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
                 .with("column.propagate.source.type", "public.enum_array_table.value")
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.enum_array_table"), false);
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.enum_array_table"), false);
 
         waitForStreamingToStart();
 
@@ -2244,7 +2289,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
         startConnector(config -> config
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.time_array_table"), false);
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.time_array_table"), false);
 
         waitForStreamingToStart();
 
@@ -2310,7 +2355,7 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
                 .with(PostgresConnectorConfig.INCLUDE_UNKNOWN_DATATYPES, false)
                 .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER)
                 .with("column.propagate.source.type", "public.enum_table.value")
-                .with(PostgresConnectorConfig.TABLE_WHITELIST, "public.enum_table"), false);
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "public.enum_table"), false);
 
         waitForStreamingToStart();
 
