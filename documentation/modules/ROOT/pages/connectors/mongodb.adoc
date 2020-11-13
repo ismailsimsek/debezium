@@ -1,6 +1,7 @@
 [id="debezium-connector-for-mongodb"]
-= {prodname} Connector for MongoDB
+= {prodname} connector for MongoDB
 
+:context: mongodb
 ifdef::community[]
 
 :toc:
@@ -136,7 +137,7 @@ If an offset can be found and it still exists in the oplog, then the task immedi
 
 However, if no offset is found or if the oplog no longer contains that position, the task must first obtain the current state of the replica set contents by performing a _snapshot_.
 This process starts by recording the current position of the oplog and recording that as the offset (along with a flag that denotes a snapshot has been started).
-The task will then proceed to copy each collection, spawning as many threads as possible (up to the value of the `initial.sync.max.threads` configuration property) to perform this work in parallel.
+The task will then proceed to copy each collection, spawning as many threads as possible (up to the value of the `snapshot.max.threads` configuration property) to perform this work in parallel.
 The connector will record a separate _read event_ for each document it sees, and that read event will contain the object's identifier, the complete state of the object, and _source_ information about the MongoDB replica set where the object was found.
 The source information will also include a flag that denotes the event was produced during a snapshot.
 
@@ -199,19 +200,73 @@ Kafka maintains total order only for events written to a single topic partition.
 Partitioning the events by key does mean that all events with the same key always go to the same partition. This ensures that all events for a specific document are always totally ordered.
 
 [[mongodb-events]]
-=== Events
+=== Data change events
 
-All data change events produced by the MongoDB connector have a key and a value.
+The {prodname} MongoDB connector generates a data change event for each document-level operation that inserts, updates, or deletes data. Each event contains a key and a value. The structure of the key and the value depends on the collection that was changed. 
 
-{prodname} and Kafka Connect are designed around _continuous streams of event messages_, and the structure of these events could potentially change over time if the source of those events changed in structure or if the connector is improved or changed.
-This could be difficult for consumers to deal with, so to make it very easy Kafka Connect makes each event self-contained. Every message key and value has two parts: a _schema_ and _payload_. The schema describes the structure of the payload, while the payload contains the actual data.
+{prodname} and Kafka Connect are designed around _continuous streams of event messages_. However, the structure of these events may change over time, which can be difficult for consumers to handle. To address this, each event contains the schema for its content or, if you are using a schema registry, a schema ID that a consumer can use to obtain the schema from the registry. This makes each event self-contained. 
+
+The following skeleton JSON shows the basic four parts of a change event. However, how you configure the Kafka Connect converter that you choose to use in your application determines the representation of these four parts in change events. A `schema` field is in a change event only when you configure the converter to produce it. Likewise, the event key and event payload are in a change event only if you configure a converter to produce it. If you use the JSON converver and you configure it to produce all four basic change event parts, change events have this structure: 
+
+[source,json,index=0]
+----
+{
+ "schema": { // <1>
+   ...
+  },
+ "payload": { // <2>
+   ...
+ },
+ "schema": { // <3> 
+   ...
+ },
+ "payload": { // <4>
+   ...
+ },
+}
+----
+
+.Overview of change event basic content
+[cols="1,2,7",options="header"]
+|===
+|Item |Field name |Description
+
+|1
+|`schema`
+|The first `schema` field is part of the event key. It specifies a Kafka Connect schema that describes what is in the event key's `payload` portion. In other words, the first `schema` field describes the structure of the key for the document that was changed. 
+
+|2
+|`payload`
+|The first `payload` field is part of the event key. It has the structure described by the previous `schema` field and it contains the key for the document that was changed. 
+
+|3
+|`schema`
+|The second `schema` field is part of the event value. It specifies the Kafka Connect schema that describes what is in the event value's `payload` portion. In other words, the second `schema` describes the structure of the document that was changed. Typically, this schema contains nested schemas. 
+
+|4
+|`payload`
+|The second `payload` field is part of the event value. It has the structure described by the previous `schema` field and it contains the actual data for the document that was changed.
+
+|===
+
+By default, the connector streams change event records to topics with names that are the same as the event's originating collection. See {link-prefix}:{link-mongodb-connector}#mongodb-topic-names[topic names].
+
+[WARNING]
+====
+The MongoDB connector ensures that all Kafka Connect schema names adhere to the link:http://avro.apache.org/docs/current/spec.html#names[Avro schema name format]. This means that the logical server name must start with a Latin letter or an underscore, that is, a-z, A-Z, or \_. Each remaining character in the logical server name and each character in the database and collection names must be a Latin letter, a digit, or an underscore, that is, a-z, A-Z, 0-9, or \_. If there is an invalid character it is replaced with an underscore character.
+
+This can lead to unexpected conflicts if the logical server name, a database name, or a collection name contains invalid characters, and the only characters that distinguish names from one another are invalid and thus replaced with underscores.
+====
 
 [[mongodb-change-events-key]]
-==== Change event's key
+==== Change event keys
 
-For a given collection, the change event's key contains a single `id` field.
-Its value is the document's identifier represented as string which is derived from the https://docs.mongodb.com/manual/reference/mongodb-extended-json/[MongoDB extended JSON serialization in strict mode]. Consider a connector with a logical name of `fulfillment`, a replica set containing an `inventory` database with a `customers` collection containing documents such as:
+A change event's key contains the schema for the changed document's key and the changed document's actual key. For a given collection, both the schema and its corresponding payload contain a single `id` field.
+The value of this field is the document's identifier represented as a string that is derived from link:https://docs.mongodb.com/manual/reference/mongodb-extended-json/[MongoDB extended JSON serialization strict mode].
 
+Consider a connector with a logical name of `fulfillment`, a replica set containing an `inventory` database, and a `customers` collection that contains documents such as the following. 
+
+.Example document
 [source,json,indent=0]
 ----
   {
@@ -222,16 +277,17 @@ Its value is the document's identifier represented as string which is derived fr
   }
 ----
 
-Every change event for the `customers` collection will feature the same key structure, which in JSON looks like this:
+.Example change event key
+Every change event that captures a change to the `customers` collection has the same event key schema. For as long as the `customers` collection has the previous definition, every change event that captures a change to the `customers` collection has the following key structure. In JSON, it looks like this:
 
 [source,json,indent=0]
 ----
   {
-    "schema": {
+    "schema": { // <1>
       "type": "struct",
-      "name": "fulfillment.inventory.customers.Key"
-      "optional": false,
-      "fields": [
+      "name": "fulfillment.inventory.customers.Key", // <2>
+      "optional": false, // <3>
+      "fields": [ // <4>
         {
           "field": "id",
           "type": "string",
@@ -239,77 +295,111 @@ Every change event for the `customers` collection will feature the same key stru
         }
       ]
     },
-    "payload": {
+    "payload": { // <5>
       "id": "1004"
     }
   }
 ----
 
-The `schema` portion of the key contains a Kafka Connect schema describing what is in the payload portion. In this case, it means that the `payload` value is not optional, is a structure defined by a schema named `fulfillment.inventory.customers.Key`, and has one required field named `id` of type `string`. If you look at the value of the key's `payload` field, you can see that it is indeed a structure (which in JSON is just an object) with a single `id` field, whose value is a string containing the integer `1004`.
+.Description of change event key
+[cols="1,2,7",options="header"]
+|===
+|Item |Field name |Description
 
-This example used a document with an integer identifier, but any valid MongoDB document identifier (including documents) will work. The value of the `id` field in the payload will simply be a string representing a MongoDB extended JSON serialization (strict mode) of the original document's `_id` field. Find below a few examples showing how `_id` fields of
-different types will get encoded as the event key's payload:
+|1
+|`schema`
+|The schema portion of the key specifies a Kafka Connect schema that describes what is in the key's `payload` portion. 
 
+|2
+|`fulfillment{zwsp}.inventory{zwsp}.customers{zwsp}.Key`
+a|Name of the schema that defines the structure of the key's payload. This schema describes the structure of the key for the document that was changed. Key schema names have the format _connector-name_._database-name_._collection-name_.`Key`. In this example: + 
+
+* `fulfillment` is the name of the connector that generated this event. + 
+* `inventory` is the database that contains the collection that was changed. +
+* `customers` is the collection that contains the document that was updated.
+
+|3
+|`optional`
+|Indicates whether the event key must contain a value in its `payload` field. In this example, a value in the key's payload is required. A value in the key's payload field is optional when a document does not have a key.
+
+|4
+|`fields` 
+|Specifies each field that is expected in the `payload`, including each field's name, type, and whether it is required.
+
+|5
+|`payload`
+|Contains the key for the document for which this change event was generated. In this example, the key contains a single `id` field of type `string` whose value is `1004`.
+
+|===
+
+This example uses a document with an integer identifier, but any valid MongoDB document identifier works the same way, including a document identifier. For a document identifier, an event key's `payload.id` value is a string that represents the updated document's original `_id` field as a MongoDB extended JSON serialization that uses strict mode. The following table provides examples of how different types of `_id` fields are represented. 
+
+.Examples of representing document `_id` fields in event key payloads
 [options="header",role="code-wordbreak-col2 code-wordbreak-col3"]
 |===
 |Type    |MongoDB `_id` Value|Key's payload
 |Integer |1234|`{ "id" : "1234" }`
 |Float   |12.34|`{ "id" : "12.34" }`
 |String  |"1234"|`{ "id" : "\"1234\"" }`
-|Document|{ "hi" : "kafka", "nums" : [10.0, 100.0, 1000.0] }|`{ "id" : "{\"hi\" : \"kafka\", \"nums\" : [10.0, 100.0, 1000.0]}" }`
-|ObjectId|ObjectId("596e275826f08b2730779e1f")|`{ "id" : "{\"$oid\" : \"596e275826f08b2730779e1f\"}" }`
-|Binary  |BinData("a2Fma2E=",0)|`{ "id" : "{\"$binary\" : \"a2Fma2E=\", \"$type\" : \"00\"}" }`
+|Document|`{ "hi" : "kafka", "nums" : [10.0, 100.0, 1000.0] }`|`{ "id" : "{\"hi\" : \"kafka\", \"nums\" : [10.0, 100.0, 1000.0]}" }`
+|ObjectId |`ObjectId("596e275826f08b2730779e1f")`|`{ "id" : "{\"$oid\" : \"596e275826f08b2730779e1f\"}" }`
+|Binary  |`BinData("a2Fma2E=",0)`|`{ "id" : "{\"$binary\" : \"a2Fma2E=\", \"$type\" : \"00\"}" }`
 |===
 
-ifdef::community[]
-[WARNING]
-====
-The MongoDB connector ensures that all Kafka Connect _schema names_ are http://avro.apache.org/docs/current/spec.html#names[valid Avro schema names]. This means that the logical server name must start with Latin letters or an underscore (e.g., [a-z,A-Z,\_]), and the remaining characters in the logical server name and all characters in the database and collections names must be Latin letters, digits, or an underscore (e.g., [a-z,A-Z,0-9,\_]). If not, then all invalid characters will automatically be replaced with an underscore character.
-
-This can lead to unexpected conflicts in schemas names when the logical server name, database names, and collection names contain other characters, and the only distinguishing characters between collection full names are invalid and thus replaced with underscores. The connector attempts to produce an exception in this such cases, but only when the conflicts exist between schemas used within a single connector.
-====
-endif::community[]
-
 [[mongodb-change-events-value]]
-==== Change event's value
+==== Change event values
 
-The value of the change event message is a bit more complicated.
-Like the key message, it has a _schema_ section and _payload_ section.
-The payload section of every change event value produced by the MongoDB connector has an _envelope_ structure with the following fields:
+The value in a change event is a bit more complicated than the key. Like the key, the value has a `schema` section and a `payload` section. The `schema` section contains the schema that describes the `Envelope` structure of the `payload` section, including its nested fields. Change events for operations that create, update or delete data all have a value payload with an envelope structure. 
 
-* `op` is a mandatory field that contains a string value describing the type of operation. Values for the MongoDB connector are `c` for create (or insert), `u` for update, `d` for delete, and `r` for read (in the case of a snapshot).
-* `after` is an optional field that if present contains the state of the document _after_ the event occurred. MongoDB's oplog entries only contain the full state of a document for _create_ events, so these are the only events that contain an _after_ field.
-* `source` is a mandatory field that contains a structure describing the source metadata for the event, which in the case of MongoDB contains several fields: the {prodname} version, the logical name, the replica set's name, the namespace of the collection, the MongoDB timestamp (and ordinal of the event within the timestamp) at which the event occurred, a unique identifier of the MongoDB operation (depending on the version of MongoDB, either the `h` field in the oplog event, or a field named `stxnid`, representing the `lsid` and `txnNumber` fields from the oplog event), and the `snapshot` flag if the event resulted during a snapshot.
-* `ts_ms` is optional and if present contains the time (using the system clock in the JVM running the Kafka Connect task) at which the connector processed the event.
+Consider the same sample document that was used to show an example of a change event key: 
 
-And of course, the _schema_ portion of the event message's value contains a schema that describes this envelope structure and the nested fields within it.
 
-Let's look at what a _create_/_read_ event value might look like for our `customers` collection:
+.Example document
+[source,json,indent=0]
+----
+  {
+    "_id": 1004,
+    "first_name": "Anne",
+    "last_name": "Kretchmar",
+    "email": "annek@noanswer.org"
+  }
+----
 
-[source,json,indent=0,subs="attributes"]
+The value portion of a change event for a change to this document is described for each event type: 
+
+* <<mongodb-create-events,_create_ events>>
+* <<mongodb-update-events,_update_ events>>
+* <<mongodb-delete-events,_delete_ events>>
+
+[id="mongodb-create-events"]
+==== _create_ events
+
+The following example shows the value portion of a change event that the connector generates for an operation that creates data in the `customers` collection: 
+
+[source,json,options="nowrap",indent=0,subs="+attributes"]
 ----
 {
-    "schema": {
+    "schema": { // <1>
       "type": "struct",
       "fields": [
         {
           "type": "string",
           "optional": true,
-          "name": "io.debezium.data.Json",
+          "name": "io.debezium.data.Json", // <2>
           "version": 1,
           "field": "after"
         },
         {
           "type": "string",
           "optional": true,
-          "name": "io.debezium.data.Json",
+          "name": "io.debezium.data.Json", 
           "version": 1,
           "field": "patch"
         },
         {
           "type": "string",
           "optional": true,
-          "name": "io.debezium.data.Json",
+          "name": "io.debezium.data.Json", 
           "version": 1,
           "field": "filter"
         },
@@ -369,7 +459,7 @@ Let's look at what a _create_/_read_ event value might look like for our `custom
             }
           ],
           "optional": false,
-          "name": "io.debezium.connector.mongo.Source",
+          "name": "io.debezium.connector.mongo.Source", // <3>
           "field": "source"
         },
         {
@@ -384,53 +474,113 @@ Let's look at what a _create_/_read_ event value might look like for our `custom
         }
       ],
       "optional": false,
-      "name": "dbserver1.inventory.customers.Envelope"
+      "name": "dbserver1.inventory.customers.Envelope" // <4>
       },
-    "payload": {
-      "after": "{\"_id\" : {\"$numberLong\" : \"1004\"},\"first_name\" : \"Anne\",\"last_name\" : \"Kretchmar\",\"email\" : \"annek@noanswer.org\"}",
+    "payload": { // <5>
+      "after": "{\"_id\" : {\"$numberLong\" : \"1004\"},\"first_name\" : \"Anne\",\"last_name\" : \"Kretchmar\",\"email\" : \"annek@noanswer.org\"}", // <6>
       "patch": null,
-      "source": {
+      "source": { // <7>
         "version": "{debezium-version}",
         "connector": "mongodb",
         "name": "fulfillment",
         "ts_ms": 1558965508000,
-        "snapshot": true,
+        "snapshot": false,
         "db": "inventory",
         "rs": "rs0",
         "collection": "customers",
         "ord": 31,
         "h": 1546547425148721999
       },
-      "op": "r",
-      "ts_ms": 1558965515240
+      "op": "c", // <8>
+      "ts_ms": 1558965515240 // <9>
     }
   }
 ----
 
-If we look at the `schema` portion of this event's _value_, we can see the schema for the _envelope_ is specific to the collection, and the schema for the `source` structure (which is specific to the MongoDB connector and reused across all events). Also note that the `after` value is always a string, and that by convention it will contain a JSON representation of the document.
+.Descriptions of _create_ event value fields
+[cols="1,2,7",options="header"]
+|===
+|Item |Field name |Description
 
-If we look at the `payload` portion of this event's _value_, we can see the information in the event, namely that it is describing that the document was read as part of an snapshot (since `op=r` and `snapshot=true`), and that the `after` field value contains the JSON string representation of the document.
+|1
+|`schema`
+|The value's schema, which describes the structure of the value's payload. A change event's value schema is the same in every change event that the connector generates for a particular collection. 
 
-[NOTE]
-====
-It may appear that the JSON representations of the events are much larger than the rows they describe. This is true, because the JSON representation must include the _schema_ and the _payload_ portions of the message.
-ifdef::community[]
-It is possible and even recommended to use the link:/docs/faq/#avro-converter[Avro Converter] to dramatically decrease the size of the actual messages written to the Kafka topics.
-endif::community[]
-====
+|2
+|`name`
+a|In the `schema` section, each `name` field specifies the schema for a field in the value's payload. +
+ +
+`io.debezium.data.Json` is the schema for the payload's `after`, `patch`, and `filter` fields. This schema is specific to the `customers` collection. A _create_ event is the only kind of event that contains an `after` field. An _update_ event contains a `filter` field and a `patch` field. A _delete_ event contains a `filter` field, but not an `after` field nor a `patch` field. 
 
-The value of an _update_ change event on this collection will actually have the exact same _schema_, and its payload is structured the same but will hold different values. Specifically, an update event will not have an `after` value and will instead have a `patch` string containing the JSON representation of the idempotent update operation and a `filter` string containing the JSON representation of the selection criteria for the update.  The `filter` string can include multiple shard key fields for sharded collections. Here's an example:
+|3
+|`name`
+a|`io.debezium.connector.mongo.Source` is the schema for the payload's `source` field. This schema is specific to the MongoDB connector. The connector uses it for all events that it generates. 
 
-[source,json,indent=0,subs="attributes"]
+|4
+|`name`
+a|`dbserver1.inventory.customers.Envelope` is the schema for the overall structure of the payload, where `dbserver1` is the connector name, `inventory` is the database, and `customers` is the collection. This schema is specific to the collection. 
+
+|5
+|`payload`
+|The value's actual data. This is the information that the change event is providing. +
+ +
+It may appear that the JSON representations of the events are much larger than the documents they describe. This is because the JSON representation must include the schema and the payload portions of the message.
+However, by using the {link-prefix}:{link-avro-serialization}[Avro converter], you can significantly decrease the size of the messages that the connector streams to Kafka topics.
+
+|6
+|`after`
+|An optional field that specifies the state of the document after the event occurred. In this example, the `after` field contains the values of the new document's `\_id`, `first_name`, `last_name`, and `email` fields. The `after` value is always a string. By convention, it contains a JSON representation of the document. MongoDB's oplog entries contain the full state of a document only for _create_ events; in other words, a _create_ event is the only kind of event that contains an _after_ field.
+
+|7
+|`source`
+a|Mandatory field that describes the source metadata for the event. This field contains information that you can use to compare this event with other events, with regard to the origin of the events, the order in which the events occurred, and whether events were part of the same transaction. The source metadata includes: 
+
+* {prodname} version.
+* Name of the connector that generated the event.
+* Logical name of the MongoDB replica set, which forms a namespace for generated events and is used in Kafka topic names to which the connector writes.
+* Names of the collection and database that contain the new document.
+* If the event was part of a snapshot.
+* Timestamp for when the change was made in the database and ordinal of the event within the timestamp.
+* Unique identifier of the MongoDB operation, which depends on the version of MongoDB. It is either the `h` field in the oplog event, or a field named `stxnid`, which represents the `lsid` and `txnNumber` fields from the oplog event.
+
+|8
+|`op`
+a|Mandatory string that describes the type of operation that caused the connector to generate the event. In this example, `c` indicates that the operation created a document. Valid values are: 
+
+* `c` = create
+* `u` = update
+* `d` = delete
+* `r` = read (applies to only snapshots)
+
+|9
+|`ts_ms`
+a|Optional field that displays the time at which the connector processed the event. The time is based on the system clock in the JVM running the Kafka Connect task.  +
+ +
+In the `source` object, `ts_ms` indicates the time that the change was made in the database. By comparing the value for `payload.source.ts_ms` with the value for `payload.ts_ms`, you can determine the lag between the source database update and {prodname}.
+
+|===
+
+[id="mongodb-update-events"]
+==== _update_ events
+
+The value of a change event for an update in the sample `customers` collection has the same schema as a _create_ event for that collection. Likewise, the event value's payload has the same structure. However, the event value payload contains different values in an _update_ event. An _update_ event does not have an `after` value. Instead, it has these two fields:  
+
+* `patch` is a string field that contains the JSON representation of the idempotent update operation 
+
+* `filter` is a string field that contains the JSON representation of the selection criteria for the update. The `filter` string can include multiple shard key fields for sharded collections. 
+
+Here is an example of a change event value in an event that the connector generates for an update in the `customers` collection: 
+
+[source,json,indent=0,options="nowrap",subs="+attributes"]
 ----
 {
     "schema": { ... },
     "payload": {
-      "op": "u",
-      "ts_ms": 1465491461815,
-      "patch": "{\"$set\":{\"first_name\":\"Anne Marie\"}}",
-      "filter": "{\"_id\" : {\"$numberLong\" : \"1004\"}}",
-      "source": {
+      "op": "u", // <1>
+      "ts_ms": 1465491461815, // <2>
+      "patch": "{\"$set\":{\"first_name\":\"Anne Marie\"}}", // <3>
+      "filter": "{\"_id\" : {\"$numberLong\" : \"1004\"}}", // <4>
+      "source": { // <5>
         "version": "{debezium-version}",
         "connector": "mongodb",
         "name": "fulfillment",
@@ -446,42 +596,69 @@ The value of an _update_ change event on this collection will actually have the 
   }
 ----
 
-When we compare this to the value in the _insert_ event, we see a couple of differences in the `payload` section:
+.Descriptions of _update_ event value fields
+[cols="1,2,7",options="header"]
+|===
+|Item |Field name |Description
 
-* The `op` field value is now `u`, signifying that this document changed because of an update
-* The `patch` field appears and has the stringified JSON representation of the actual MongoDB idempotent change to the document, which in this example involves setting the `first_name` field to a new value
-* The `filter` field appears and has the stringified JSON representation of the MongoDB selection criteria used for the update
-* The `after` field no longer appears
-* The `source` field structure has the same fields as before, but the values are different since this event is from a different position in the oplog
-* The `ts_ms` shows the timestamp that {prodname} processed this event
+|1
+|`op`
+a|Mandatory string that describes the type of operation that caused the connector to generate the event. In this example, `u` indicates that the operation updated a document. 
+
+|2
+|`ts_ms`
+a|Optional field that displays the time at which the connector processed the event. The time is based on the system clock in the JVM running the Kafka Connect task.  +
+ +
+In the `source` object, `ts_ms` indicates the time that the change was made in the database. By comparing the value for `payload.source.ts_ms` with the value for `payload.ts_ms`, you can determine the lag between the source database update and {prodname}.
+
+|3
+|`patch`
+|Contains the JSON string representation of the actual MongoDB idempotent change to the document. In this example, the update changed the `first_name` field to a new value. +
+ +
+An _update_ event value does not contain an `after` field. 
+
+|4
+|`filter`
+|Contains the JSON string representation of the MongoDB selection criteria that was used to identify the document to be updated. 
+
+|5
+|`source`
+a|Mandatory field that describes the source metadata for the event. This field contains the same information as a _create_ event for the same collection, but the values are different since this event is from a different position in the oplog. The source metadata includes: 
+
+* {prodname} version.
+* Name of the connector that generated the event.
+* Logical name of the MongoDB replica set, which forms a namespace for generated events and is used in Kafka topic names to which the connector writes.
+* Names of the collection and database that contain the updated document.
+* If the event was part of a snapshot.
+* Timestamp for when the change was made in the database and ordinal of the event within the timestamp.
+* Unique identifier of the MongoDB operation, which depends on the version of MongoDB. It is either the `h` field in the oplog event, or a field named `stxnid`, which represents the `lsid` and `txnNumber` fields from the oplog event.
+
+|===
 
 [WARNING]
 ====
-The content of the patch field is provided by MongoDB itself and its exact format depends on the specific database version.
-You should therefore be prepared for potential changes to the format when upgrading the MongoDB instance to a new version.
-
-All examples in this document were obtained from MongoDB 3.4 and might differ if you use a different one.
+In a {prodname} change event, MongoDB provides the content of the `patch` field. The format of this field depends on the version of the MongoDB database. Consequently, be prepared for potential changes to the format when you upgrade to a newer MongoDB database version. Examples in this document were obtained from MongoDB 3.4, In your application, event formats might be different.
 ====
 
 [NOTE]
 ====
-Update events in MongoDB's oplog do not have the _before_ or _after_ states of the changed document, so there's no way for the connector to provide this information.
-However, because _create_ or _read_ events _do_ contain the starting state, downstream consumers of the stream can actually fully-reconstruct the state by keeping the latest state for each document and applying each event to that state. {prodname} connector's are not able to keep such state, so it is not able to do this.
+In MongoDB's oplog, _update_ events do not contain the _before_ or _after_ states of the changed document. Consequently, it is not possible for a {prodname} connector to provide this information. However, a {prodname} connector provides a document's starting state in _create_ and _read_ events. Downstream consumers of the stream can reconstruct document state by keeping the latest state for each document and comparing the state in a new event with the saved state. {prodname} connector's are not able to keep this state. 
 ====
 
-So far, you have seen samples of _create_/_read_ and _update_ events. The following sample shows the value of a _delete_ event for the same collection.
-The value of a _delete_ event on this collection has the exact same _schema_, and its payload is structured the same but it holds different values.
-In particular, a delete event does not have an `after` value nor a `patch` value:
+[id="mongodb-delete-events"]
+==== _delete_ events
 
-[source,json,indent=0,subs="attributes"]
+The value in a _delete_ change event has the same `schema` portion as _create_ and _update_ events for the same collection. The `payload` portion in a _delete_ event contains values that are different from _create_ and _update_ events for the same collection. In particular, a _delete_ event contains neither an `after` value nor a `patch` value. Here is an example of a _delete_ event for a document in the `customers` collection: 
+
+[source,json,indent=0,subs="+attributes"]
 ----
 {
     "schema": { ... },
     "payload": {
-      "op": "d",
-      "ts_ms": 1465495462115,
-      "filter": "{\"_id\" : {\"$numberLong\" : \"1004\"}}",
-      "source": {
+      "op": "d", // <1>
+      "ts_ms": 1465495462115, // <2>
+      "filter": "{\"_id\" : {\"$numberLong\" : \"1004\"}}", // <3>
+      "source": { // <4>
         "version": "{debezium-version}",
         "connector": "mongodb",
         "name": "fulfillment",
@@ -497,23 +674,44 @@ In particular, a delete event does not have an `after` value nor a `patch` value
   }
 ----
 
-When we compare this to the value in the other events, we see a couple of differences in the `payload` section:
+.Descriptions of _delete_ event value fields
+[cols="1,2,7",options="header",subs="+attributes"]
+|===
+|Item |Field name |Description
 
-* The `op` field value is now `d`, signifying that this document was deleted
-* The `patch` field does not appear
-* The `after` field does not appear
-* The `filter` field appears and has the stringified JSON representation of the MongoDB selection criteria used for the delete
-* The `source` field structure has the same fields as before, but the values are different since this event is from a different position in the oplog
-* The `ts_ms` shows the timestamp that {prodname} processed this event
+|1
+|`op`
+a|Mandatory string that describes the type of operation. The `op` field value is `d`, signifying that this document was deleted.
 
-The MongoDB connector provides one other kind of event. Each _delete_ event is followed by a _tombstone_ event that has the same key as the _delete_ event but a `null` value. This provides Kafka with the information needed to run its link:https://kafka.apache.org/documentation/#compaction[log compaction] mechanism to remove _all_ messages with that key.
+|2
+|`ts_ms`
+a|Optional field that displays the time at which the connector processed the event. The time is based on the system clock in the JVM running the Kafka Connect task.  +
+ +
+In the `source` object, `ts_ms` indicates the time that the change was made in the database. By comparing the value for `payload.source.ts_ms` with the value for `payload.ts_ms`, you can determine the lag between the source database update and {prodname}.
 
-[NOTE]
-====
-All MongoDB connector events are designed to work with link:https://kafka.apache.org/documentation/#compaction[Kafka log compaction], which allows for the removal of older messages as long as at least the most recent message for every key is kept. This is how Kafka can reclaim storage space while ensuring that the topic contains a complete dataset and can be used for reloading key-based state.
+|3
+|`filter`
+|Contains the JSON string representation of the MongoDB selection criteria that was used to identify the document to be deleted.  
 
-All MongoDB connector events for a uniquely identified document have exactly the same key, signaling to Kafka that only the latest event be kept. A tombstone event informs Kafka that _all_ messages with that same key can be removed.
-====
+|4
+|`source`
+a|Mandatory field that describes the source metadata for the event. This field contains the same information as a _create_ or _update_ event for the same collection, but the values are different since this event is from a different position in the oplog. The source metadata includes: 
+
+* {prodname} version.
+* Name of the connector that generated the event.
+* Logical name of the MongoDB replica set, which forms a namespace for generated events and is used in Kafka topic names to which the connector writes.
+* Names of the collection and database that contained the deleted document.
+* If the event was part of a snapshot.
+* Timestamp for when the change was made in the database and ordinal of the event within the timestamp.
+* Unique identifier of the MongoDB operation, which depends on the version of MongoDB. It is either the `h` field in the `oplog` event, or a field named `stxnid`, which represents the `lsid` and `txnNumber` fields from the `oplog` event.
+
+|===
+
+MongoDB connector events are designed to work with link:{link-kafka-docs}/#compaction[Kafka log compaction]. Log compaction enables removal of some older messages as long as at least the most recent message for every key is kept. This lets Kafka reclaim storage space while ensuring that the topic contains a complete data set and can be used for reloading key-based state.
+
+[id="mongodb-tombstone-events"]
+.Tombstone events
+All MongoDB connector events for a uniquely identified document have exactly the same key. When a document is deleted, the _delete_ event value still works with log compaction because Kafka can remove all earlier messages that have that same key. However, for Kafka to remove all messages that have that key, the message value must be `null`. To make this possible, after {prodname}’s MongoDB connector emits a _delete_ event, the connector emits a special tombstone event that has the same key but a `null` value. A tombstone event informs Kafka that all messages with that same key can be removed.
 
 [[mongodb-transaction-metadata]]
 === Transaction Metadata
@@ -531,7 +729,7 @@ Every event contains
 
 Following is an example of what a message looks like:
 
-[source,json,indent=0,subs="attributes"]
+[source,json,indent=0,subs="+attributes"]
 ----
 {
   "status": "BEGIN",
@@ -569,7 +767,7 @@ This field provides information about every event in the form of a composite of 
 
 Following is an example of what a message looks like: 
 
-[source,json,indent=0,subs="attributes"]
+[source,json,indent=0,subs="+attributes"]
 ----
 {
   "before": null,
@@ -594,60 +792,58 @@ Following is an example of what a message looks like:
 == Deploying the MongoDB connector
 
 ifdef::community[]
-If you have already installed https://zookeeper.apache.org[Zookeeper], http://kafka.apache.org/[Kafka], and {link-kafka-docs}.html#connect[Kafka Connect], then using {prodname}'s MongoDB connector is easy.
-Simply download the
+With https://zookeeper.apache.org[Zookeeper], http://kafka.apache.org/[Kafka], and {link-kafka-docs}.html#connect[Kafka Connect] installed, the remaining tasks to deploy a {prodname} MongoDB connector are to 
+download the
 ifeval::['{page-version}' == 'master']
 {link-mongodb-plugin-snapshot}[connector's plug-in archive],
 endif::[]
 ifeval::['{page-version}' != 'master']
 https://repo1.maven.org/maven2/io/debezium/debezium-connector-mongodb/{debezium-version}/debezium-connector-mongodb-{debezium-version}-plugin.tar.gz[connector's plug-in archive],
 endif::[]
-extract the JARs into your Kafka Connect environment, and add the directory with the JARs to Kafka Connect's `plugin.path` by using the {link-kafka-docs}/#connectconfigs[plugin.path] configuration property.
-Restart your Kafka Connect process to pick up the new JARs.
+extract the JAR files into your Kafka Connect environment, and add the directory with the JAR files to  {link-kafka-docs}/#connectconfigs[Kafka Connect's `plugin.path`]. You then need to 
+restart your Kafka Connect process to pick up the new JAR files.
+
+If you are working with immutable containers, see link:https://hub.docker.com/r/debezium/[{prodname}'s Container images] for Zookeeper, Kafka, and Kafka Connect with the MongoDB connector already installed and ready to run. You can also xref:operations/openshift.adoc[run {prodname} on Kubernetes and OpenShift].
+
+The {prodname} xref:tutorial.adoc[tutorial] walks you through using these images, and this is a great way to learn about {prodname}. 
 endif::community[]
 
 ifdef::product[]
-Installing the MongoDB connector is a simple process whereby you only need to download the JAR, extract it to your Kafka Connect environment, and ensure the plug-in's parent directory is specified in your Kafka Connect environment.
+To deploy a {prodname} MongoDB connector, install the {prodname} MongoDB connector archive, configure the connector, and start the connector by adding its configuration to Kafka Connect. 
 
-.Prerequisites
+To install the MongoDB connector, follow the procedures in {LinkDebeziumInstallOpenShift}[{NameDebeziumInstallOpenShift}]. The main steps are:
 
-* You have link:https://zookeeper.apache.org/[Zookeeper], link:http://kafka.apache.org/[Kafka], and link:{link-kafka-docs}.html#connect[Kafka Connect] installed.
-* You have MongoDB installed and setup.
-
-.Procedure
+. Use link:https://access.redhat.com/products/red-hat-amq#streams[Red Hat AMQ Streams] to set up Apache Kafka and Kafka Connect on OpenShift. AMQ Streams offers operators and images that bring Kafka to OpenShift. 
 
 . Download the {prodname} link:https://access.redhat.com/jbossnetwork/restricted/listSoftware.html?product=red.hat.integration&downloadType=distributions[MongoDB connector].
-. Extract the files into your Kafka Connect environment.
-. Add the plug-in's parent directory to your Kafka Connect `plugin.path`:
+
+. Extract the connector files into your Kafka Connect environment.
+. Add the connector plug-in's parent directory to your Kafka Connect `plugin.path`, for example: 
 +
 [source]
 ----
 plugin.path=/kafka/connect
 ----
++
+The above example assumes that you extracted the {prodname} MongoDB connector to the `/kafka/connect/{prodname}-connector-mongodb` path.
 
-NOTE: The above example assumes you have extracted the {prodname} MongoDB connector to the `/kafka/connect/{prodname}-connector-mongodb` path.
+. Restart your Kafka Connect process to ensure that the new JAR files are picked up.
 
-[start=4]
-. Restart your Kafka Connect process. This ensures the new JARs are picked up.
+You also need to {LinkDebeziumUserGuide}#setting-up-mongodb[set up MongoDB] to run a {prodname} connector.
 
 .Additional resources
 
-For more information on the deployment process, and deploying connectors with AMQ Streams, refer to the {prodname} installation guides.
+For more information about the deployment process, and deploying connectors with AMQ Streams, see the {prodname} installation guides.
 
 * {LinkDebeziumInstallOpenShift}[{NameDebeziumInstallOpenShift}]
 * {LinkDebeziumInstallRHEL}[{NameDebeziumInstallRHEL}]
 endif::product[]
 
-ifdef::community[]
-If immutable containers are your thing, then check out https://hub.docker.com/r/debezium/[{prodname}'s Docker images] for Zookeeper, Kafka, and Kafka Connect with the MongoDB connector already pre-installed and ready to go.
-Our xref:tutorial.adoc[tutorial] even walks you through using these images, and this is a great way to learn what {prodname} is all about. You can even link:/blog/2016/05/31/Debezium-on-Kubernetes/[run {prodname} on Kubernetes and OpenShift].
-endif::community[]
-
 [[mongodb-example-configuration]]
 === Example configuration
 
 To use the connector to produce change events for a particular MongoDB replica set or sharded cluster, create a configuration file in JSON.
-When the connector starts, it will perform a snapshot of the collections in your MongoDB replica sets and start reading the replica sets' oplogs, producing events for every inserted, updated, and deleted row.
+When the connector starts, it will perform a snapshot of the collections in your MongoDB replica sets and start reading the replica sets' oplogs, producing events for every inserted, updated, and deleted document.
 Optionally filter out collections that are not needed.
 
 ifdef::community[]
@@ -658,7 +854,7 @@ Typically, you configure the {prodname} MongoDB connector in a `.json` file usin
 [source,json]
 ----
 {
-  "name": "inventory-connector",  // <1>
+  "name": "inventory-connector", // <1>
   "config": {
     "connector.class": "io.debezium.connector.mongodb.MongoDbConnector", // <2>
     "mongodb.hosts": "rs0/192.168.99.100:27017", // <3>
@@ -679,12 +875,12 @@ ifdef::product[]
 Following is an example of the configuration for a MongoDB connector that monitors a MongoDB replica set `rs0` at port 27017 on 192.168.99.100, which we logically name `fullfillment`.
 Typically, you configure the {prodname} MongoDB connector in a `.yaml` file using the configuration properties available for the connector.
 
-[source,yaml,options="nowrap"]
+[source,yaml,options="nowrap",subs="+attributes"]
 ----
-apiVersion: kafka.strimzi.io/v1beta1
+apiVersion: {KafkaConnectApiVersion}
   kind: KafkaConnector
   metadata:
-    name: inventory-connector  // <1>
+    name: inventory-connector // <1>
     labels: strimzi.io/cluster: my-connect-cluster
   spec:
     class: io.debezium.connector.mongodb.MongoDbConnector // <2>
@@ -705,6 +901,116 @@ See the {link-prefix}:{link-mongodb-connector}#mongodb-connector-properties[comp
 
 This configuration can be sent via POST to a running Kafka Connect service, which will then record the configuration and start up the one connector task that will connect to the MongoDB replica set or sharded cluster, assign tasks for each replica set, perform a snapshot if necessary, read the oplog, and record events to Kafka topics.
 
+[[mongodb-adding-connector-configuration]]
+=== Adding connector configuration
+
+ifdef::community[]
+To run a {prodname} MongoDB connector, create a connector configuration and add the configuration to your Kafka Connect cluster. 
+
+.Prerequisites
+
+* MongoDB is set up to run a {prodname} connector.
+
+* A {prodname} MongoDB connector is installed. 
+
+.Procedure
+
+. Create a configuration for the MongoDB connector.
+
+. Use the link:{link-kafka-docs}/#connect_rest[Kafka Connect REST API] to add that connector configuration to your Kafka Connect cluster. 
+
+endif::community[]
+
+ifdef::product[]
+You can use a provided {prodname} container to deploy a {prodname} MongoDB connector. In this procedure, you build a custom Kafka Connect container image for {prodname}, configure the {prodname} connector as needed, and then add your connector configuration to your Kafka Connect environment. 
+
+.Prerequisites
+
+* Podman or Docker is installed and you have sufficient rights to create and manage containers.
+* You installed the {prodname} MongoDB connector archive. 
+
+.Procedure
+
+. Extract the {prodname} MongoDB connector archive to create a directory structure for the connector plug-in, for example: 
++
+[subs="+macros,+attributes"]
+----
+pass:quotes[*tree ./my-plugins/*]
+./my-plugins/
+├── debezium-connector-mongodb
+│   ├── ...
+----
+
+. Create and publish a custom image for running your {prodname} connector:
+
+.. Create a new `Dockerfile` by using `{DockerKafkaConnect}` as the base image. In the following example, you would replace _my-plugins_ with the name of your plug-ins directory:
++
+[subs="+macros,+attributes"]
+----
+FROM {DockerKafkaConnect}
+USER root:root
+pass:quotes[COPY _./my-plugins/_ /opt/kafka/plugins/]
+USER 1001
+----
++
+Before Kafka Connect starts running the connector, Kafka Connect loads any third-party plug-ins that are in the `/opt/kafka/plugins` directory.
+
+.. Build the container image. For example, if you saved the `Dockerfile` that you created in the previous step as `debezium-container-for-mongodb`, and if the `Dockerfile` is in the current directory, then you would run the following command:
++
+`podman build -t debezium-container-for-mongodb:latest .`
+
+.. Push your custom image to your container registry, for example:
++
+`podman push debezium-container-for-mongodb:latest`
+
+.. Point to the new container image. Do one of the following:
++
+* Edit the `spec.image` property of the `KafkaConnector` custom resource. If set, this property overrides the `STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE` variable in the Cluster Operator. For example:
++
+[source,yaml,subs="+attributes"]
+----
+apiVersion: {KafkaConnectApiVersion}
+kind: KafkaConnector
+metadata:
+  name: my-connect-cluster
+spec:
+  #...
+  image: debezium-container-for-mongodb
+----
++
+* In the `install/cluster-operator/050-Deployment-strimzi-cluster-operator.yaml` file, edit the `STRIMZI_DEFAULT_KAFKA_CONNECT_IMAGE` variable to point to the new container image and reinstall the Cluster Operator. If you edit this file you must apply it to your OpenShift cluster.
+
+. Create a `KafkaConnector` custom resource that defines your {prodname} MongoDB connector instance. See {LinkDebeziumUserGuide}#mongodb-example-configuration[the connector configuration example].
+
+. Apply the connector instance, for example: 
++
+`oc apply -f inventory-connector.yaml`
++
+This registers `inventory-connector` and the connector starts to run against the `inventory` database.
+
+. Verify that the connector was created and has started to capture changes in the specified database. You can verify the connector instance by watching the Kafka Connect log output as, for example, `inventory-connector` starts.
+
+.. Display the Kafka Connect log output:
++
+[source,shell,options="nowrap"]
+----
+oc logs $(oc get pods -o name -l strimzi.io/name=my-connect-cluster-connect)
+----
+
+.. Review the log output to verify that the initial snapshot has been executed. You should see something like the following lines: 
++
+[source,shell,options="nowrap"]
+----
+... INFO Starting snapshot for ...
+... INFO Snapshot is using user 'debezium' ... 
+----
+
+endif::product[]
+
+.Results
+
+When the connector starts, it {link-prefix}:{link-mongodb-connector}#mongodb-performing-a-snapshot[performs a consistent snapshot] of the MongoDB databases that the connector is configured for. The connector then starts generating data change events for document-level operations and streaming change event records to Kafka topics. 
+
 [[mongodb-monitoring]]
 === Monitoring
 
@@ -724,7 +1030,7 @@ include::{partialsdir}/modules/all-connectors/ref-connector-monitoring-snapshot-
 
 The {prodname} MongoDB connector also provides the following custom snapshot metrics:
 
-[cols="3,2,5"]
+[cols="3,2,5",options="header"]
 |===
 |Attribute |Type |Description
 
@@ -743,7 +1049,7 @@ include::{partialsdir}/modules/all-connectors/ref-connector-monitoring-streaming
 
 The {prodname} MongoDB connector also provides the following custom streaming metrics:
 
-[cols="3,2,5"]
+[cols="3,2,5",options="header"]
 |===
 |Attribute |Type |Description
 
@@ -762,7 +1068,7 @@ The {prodname} MongoDB connector also provides the following custom streaming me
 
 The following configuration properties are _required_ unless a default value is available.
 
-[cols="30%a,25%a,45%a"]
+[cols="30%a,25%a,45%a",options="header"]
 |===
 |Property |Default |Description
 
@@ -799,26 +1105,30 @@ Only alphanumeric characters and underscores should be used.
 |`false`
 |Connector will use SSL to connect to MongoDB instances.
 
-|[[mongodb-property-mongodb-ssl-invalid-hostname-allowed]]<<mongodb-property-mongodb-ssl-invalid-hostname-allowed, `mongodb.ssl.invalid.hostname.allowed`>>
+|[[mongodb-property-mongodb-ssl-invalid-hostname-allowed]]<<mongodb-property-mongodb-ssl-invalid-hostname-allowed, `mongodb.ssl.invalid{zwsp}.hostname.allowed`>>
 |`false`
 |When SSL is enabled this setting controls whether strict hostname checking is disabled during connection phase. If `true` the connection will not prevent man-in-the-middle attacks.
 
-|[[mongodb-property-database-whitelist]]<<mongodb-property-database-whitelist [[mongodb-property-database-include-list]]<<mongodb-property-database-include-list , `database.include.list`>>
+|[[mongodb-property-database-whitelist]]
+[[mongodb-property-database-include-list]]<<mongodb-property-database-include-list, `database.include{zwsp}.list`>>
 |_empty string_
 |An optional comma-separated list of regular expressions that match database names to be monitored; any database name not included in `database.include.list` is excluded from monitoring. By default all databases are monitored.
 Must not be used with `database.exclude.list`.
 
-|[[mongodb-property-database-blacklist]]<<mongodb-property-database-blacklist [[mongodb-property-database-exclude-list]]<<mongodb-property-database-exclude-list, `database.exclude.list`>>
+|[[mongodb-property-database-blacklist]]
+[[mongodb-property-database-exclude-list]]<<mongodb-property-database-exclude-list, `database.exclude{zwsp}.list`>>
 |_empty string_
 |An optional comma-separated list of regular expressions that match database names to be excluded from monitoring; any database name not included in `database.exclude.list` is monitored.
 Must not be used with `database.include.list`.
 
-|[[mongodb-property-collection-whitelist]]<<mongodb-property-collection-whitelist [[mongodb-property-collection-include-list]]<<mongodb-property-collection-include-list, `collection.include.list`>>
+|[[mongodb-property-collection-whitelist]]
+[[mongodb-property-collection-include-list]]<<mongodb-property-collection-include-list, `collection{zwsp}.include.list`>>
 |_empty string_
 |An optional comma-separated list of regular expressions that match fully-qualified namespaces for MongoDB collections to be monitored; any collection not included in `collection.include.list` is excluded from monitoring. Each identifier is of the form _databaseName_._collectionName_. By default the connector will monitor all collections except those in the `local` and `admin` databases.
 Must not be used with `collection.exclude.list`.
 
-|[[mongodb-property-collection-blacklist]]<<mongodb-property-collection-blacklist [[mongodb-property-collection-exclude-list]]<<mongodb-property-collection-exclude-list , `collection.exclude.list`>>
+|[[mongodb-property-collection-blacklist]]
+[[mongodb-property-collection-exclude-list]]<<mongodb-property-collection-exclude-list, `collection{zwsp}.exclude.list`>>
 |_empty string_
 |An optional comma-separated list of regular expressions that match fully-qualified namespaces for MongoDB collections to be excluded from monitoring; any collection not included in `collection.exclude.list` is monitored. Each identifier is of the form _databaseName_._collectionName_.
 Must not be used with `collection.include.list`.
@@ -827,7 +1137,12 @@ Must not be used with `collection.include.list`.
 |`initial`
 |Specifies the criteria for running a snapshot upon startup of the connector. The default is *initial*, and specifies the connector reads a snapshot when either no offset is found or if the oplog no longer contains the previous offset. The *never* option specifies that the connector should never use snapshots, instead the connector should proceed to tail the log.
 
-|[[mongodb-property-field-blacklist]]<<mongodb-property-field-blacklist [[mongodb-property-field-exclude-list]]<<mongodb-property-field-exclude-list, `field.exclude.list`>>
+|[[mongodb-property-snapshot-include-collection-list]]<<mongodb-property-snapshot-include-collection-list, `snapshot.include.collection.list`>>
+| All collections specified in `collection.include.list`
+|An optional, comma-separated list of regular expressions that match names of schemas specified in `collection.include.list` for which you *want* to take the snapshot.
+
+|[[mongodb-property-field-blacklist]]
+[[mongodb-property-field-exclude-list]]<<mongodb-property-field-exclude-list, `field.exclude{zwsp}.list`>>
 |_empty string_
 |An optional comma-separated list of the fully-qualified names of fields that should be excluded from change event message values. Fully-qualified names for fields are of the form _databaseName_._collectionName_._fieldName_._nestedFieldName_, where _databaseName_ and _collectionName_ may contain the wildcard (*) which matches any characters.
 
@@ -839,11 +1154,11 @@ Must not be used with `collection.include.list`.
 |`1`
 |The maximum number of tasks that should be created for this connector. The MongoDB connector will attempt to use a separate task for each replica set, so the default is acceptable when using the connector with a single MongoDB replica set. When using the connector with a MongoDB sharded cluster, we recommend specifying a value that is equal to or more than the number of shards in the cluster, so that the work for each replica set can be distributed by Kafka Connect.
 
-|[[mongodb-property-initial-sync-max-threads]]<<mongodb-property-initial-sync-max-threads, `initial.sync.max.threads`>>
+|[[mongodb-property-snapshot-max-threads]]<<mongodb-property-snapshot-max-threads, `snapshot{zwsp}.max.threads`>>
 |`1`
 |Positive integer value that specifies the maximum number of threads used to perform an intial sync of the collections in a replica set. Defaults to 1.
 
-|[[mongodb-property-tombstones-on-delete]]<<mongodb-property-tombstones-on-delete, `tombstones.on.delete`>>
+|[[mongodb-property-tombstones-on-delete]]<<mongodb-property-tombstones-on-delete, `tombstones.on{zwsp}.delete`>>
 |`true`
 | Controls whether a tombstone event should be generated after a delete event. +
 When `true` the delete operations are represented by a delete event and a subsequent tombstone event. When `false` only a delete event is sent. +
@@ -851,7 +1166,7 @@ Emitting the tombstone event (the default behavior) allows Kafka to completely d
 
 |[[mongodb-property-snapshot-delay-ms]]<<mongodb-property-snapshot-delay-ms, `snapshot.delay.ms`>>
 |
-|An interval in milli-seconds that the connector should wait before taking a snapshot after starting up; +
+|An interval in milliseconds that the connector should wait before taking a snapshot after starting up; +
 Can be used to avoid snapshot interruptions when starting multiple connectors in a cluster, which may cause re-balancing of connectors.
 
 |[[mongodb-property-snapshot-fetch-size]]<<mongodb-property-snapshot-fetch-size, `snapshot.fetch.size`>>
@@ -865,7 +1180,7 @@ Defaults to 0, which indicates that the server chooses an appropriate fetch size
 
 The following _advanced_ configuration properties have good defaults that will work in most situations and therefore rarely need to be specified in the connector's configuration.
 
-[cols="30%a,25%a,45%a"]
+[cols="30%a,25%a,45%a",options="header"]
 |===
 |Property
 |Default
@@ -883,24 +1198,24 @@ The following _advanced_ configuration properties have good defaults that will w
 |`1000`
 |Positive integer value that specifies the number of milliseconds the connector should wait during each iteration for new change events to appear. Defaults to 1000 milliseconds, or 1 second.
 
-|[[mongodb-property-connect-backoff-initial-delay-ms]]<<mongodb-property-connect-backoff-initial-delay-ms, `connect.backoff.initial.delay.ms`>>
+|[[mongodb-property-connect-backoff-initial-delay-ms]]<<mongodb-property-connect-backoff-initial-delay-ms, `connect.backoff{zwsp}.initial.delay.ms`>>
 |`1000`
 |Positive integer value that specifies the initial delay when trying to reconnect to a primary after the first failed connection attempt or when no primary is available. Defaults to 1 second (1000 ms).
 
-|[[mongodb-property-connect-backoff-max-delay-ms]]<<mongodb-property-connect-backoff-max-delay-ms, `connect.backoff.max.delay.ms`>>
+|[[mongodb-property-connect-backoff-max-delay-ms]]<<mongodb-property-connect-backoff-max-delay-ms, `connect.backoff{zwsp}.max.delay.ms`>>
 |`1000`
 |Positive integer value that specifies the maximum delay when trying to reconnect to a primary after repeated failed connection attempts or when no primary is available. Defaults to 120 seconds (120,000 ms).
 
-|[[mongodb-property-connect-max-attempts]]<<mongodb-property-connect-max-attempts, `connect.max.attempts`>>
+|[[mongodb-property-connect-max-attempts]]<<mongodb-property-connect-max-attempts, `connect.max{zwsp}.attempts`>>
 |`16`
 |Positive integer value that specifies the maximum number of failed connection attempts to a replica set primary before an exception occurs and task is aborted. Defaults to 16, which with the defaults for `connect.backoff.initial.delay.ms` and `connect.backoff.max.delay.ms` results in just over 20 minutes of attempts before failing.
 
-|[[mongodb-property-mongodb-members-auto-discover]]<<mongodb-property-mongodb-members-auto-discover, `mongodb.members.auto.discover`>>
+|[[mongodb-property-mongodb-members-auto-discover]]<<mongodb-property-mongodb-members-auto-discover, `mongodb.members{zwsp}.auto.discover`>>
 |`true`
 |Boolean value that specifies whether the addresses in 'mongodb.hosts' are seeds that should be used to discover all members of the cluster or replica set (`true`), or whether the address(es) in `mongodb.hosts` should be used as is (`false`). The default is `true` and should be used in all cases except where MongoDB is {link-prefix}:{link-mongodb-connector}#mongodb-replicaset[fronted by a proxy].
 
 ifdef::community[]
-|[[mongodb-property-source-struct-version]]<<mongodb-property-source-struct-version, `source.struct.version`>>
+|[[mongodb-property-source-struct-version]]<<mongodb-property-source-struct-version, `source.struct{zwsp}.version`>>
 |v2
 |Schema version for the `source` block in CDC events. {prodname} 0.10 introduced a few breaking +
 changes to the structure of the `source` block in order to unify the exposed structure across
@@ -909,10 +1224,10 @@ By setting this option to `v1` the structure used in earlier versions can be pro
 Note that this setting is not recommended and is planned for removal in a future {prodname} version.
 endif::community[]
 
-|[[mongodb-property-heartbeat-interval-ms]]<<mongodb-property-heartbeat-interval-ms, `heartbeat.interval.ms`>>
+|[[mongodb-property-heartbeat-interval-ms]]<<mongodb-property-heartbeat-interval-ms, `heartbeat.interval{zwsp}.ms`>>
 |`0`
 |Controls how frequently heartbeat messages are sent. +
-This property contains an interval in milli-seconds that defines how frequently the connector sends messages into a heartbeat topic.
+This property contains an interval in milliseconds that defines how frequently the connector sends messages into a heartbeat topic.
 This can be used to monitor whether the connector is still receiving change events from the database.
 You also should leverage heartbeat messages in cases where only records in non-captured collections are changed for a longer period of time.
 In such situation the connector would proceed to read the oplog from the database but never emit any change messages into Kafka,
@@ -922,12 +1237,12 @@ This will cause the oplog files to be rotated out but connector will not notice 
 Set this parameter to `0` to not send heartbeat messages at all. +
 Disabled by default.
 
-|[[mongodb-property-heartbeat-topics-prefix]]<<mongodb-property-heartbeat-topics-prefix, `heartbeat.topics.prefix`>>
+|[[mongodb-property-heartbeat-topics-prefix]]<<mongodb-property-heartbeat-topics-prefix, `heartbeat.topics{zwsp}.prefix`>>
 |`__debezium-heartbeat`
 |Controls the naming of the topic to which heartbeat messages are sent. +
 The topic is named according to the pattern `<heartbeat.topics.prefix>.<server.name>`.
 
-|[[mongodb-property-sanitize-field-names]]<<mongodb-property-sanitize-field-names, `sanitize.field.names`>>
+|[[mongodb-property-sanitize-field-names]]<<mongodb-property-sanitize-field-names, `sanitize.field{zwsp}.names`>>
 |`true` when connector configuration explicitly specifies the `key.converter` or `value.converter` parameters to use Avro, otherwise defaults to `false`.
 |Whether field names are sanitized to adhere to Avro naming requirements.
 ifdef::community[]
@@ -940,32 +1255,39 @@ endif::community[]
 The operations include: `i` for inserts, `u` for updates, and `d` for deletes.
 By default, no operations are skipped.
 
-|[[mongodb-property-provide-transaction-metadata]]<<mongodb-property-provide-transaction-metadata, `provide.transaction.metadata`>>
+|[[mongodb-property-snapshot-collection-filter-overrides]]<<mongodb-property-snapshot-collection-filter-overrides, `snapshot.collection.filter.overrides`>>
+|
+| Controls which collection items are included in snapshot. This property affects snapshots only. Specify a comma-separated list of collection names in the form _databaseName{zwsp}.collectionName_.
+
+For each collection that you specify, also specify another configuration property: `snapshot{zwsp}.collection{zwsp}.filter{zwsp}.overrides{zwsp}._databaseName_._collectionName_`. For example, the name of the other configuration property might be: `snapshot{zwsp}.collection{zwsp}.filter{zwsp}.overrides{zwsp}.customers{zwsp}.orders`. Set this property to a valid filter expression that retrieves only the items that you want in the snapshot. When the connector performs a snapshot, it retrieves only the items that matches the filter expression.
+
+
+|[[mongodb-property-provide-transaction-metadata]]<<mongodb-property-provide-transaction-metadata, `provide.transaction{zwsp}.metadata`>>
 |`false`
 |When set to `true` {prodname} generates events with transaction boundaries and enriches data events envelope with transaction metadata.
 
 See {link-prefix}:{link-mongodb-connector}#mongodb-transaction-metadata[Transaction Metadata] for additional details.
 
-|[[mongodb-property-retriable-restart-connector-wait-ms]]<<mongodb-property-retriable-restart-connector-wait-ms, `retriable.restart{zwsp}.connector.wait.ms`>> +
+|[[mongodb-property-retriable-restart-connector-wait-ms]]<<mongodb-property-retriable-restart-connector-wait-ms, `retriable.restart{zwsp}.connector.wait.ms`>> 
 |10000 (10 seconds)
-|The number of milli-seconds to wait before restarting a connector after a retriable error occurs.
+|The number of milliseconds to wait before restarting a connector after a retriable error occurs.
 
-|[[mongodb-property-mongodb-poll-interval-ms]]<<mongodb-property-mongodb-poll-interval-ms, `mongodb.poll.interval.ms`>> +
+|[[mongodb-property-mongodb-poll-interval-ms]]<<mongodb-property-mongodb-poll-interval-ms, `mongodb.poll{zwsp}.interval.ms`>> 
 |`30000`
 |The interval in which the connector polls for new, removed, or changed replica sets.
 
-|[[mongodb-property-mongodb-connect-timeout-ms]]<<mongodb-property-mongodb-connect-timeout-ms, `mongodb.connect.timeout.ms`>> +
+|[[mongodb-property-mongodb-connect-timeout-ms]]<<mongodb-property-mongodb-connect-timeout-ms, `mongodb.connect{zwsp}.timeout.ms`>> 
 |10000 (10 seconds)
-|The number of milli-seconds the driver will wait before a new connection attempt is aborted.
+|The number of milliseconds the driver will wait before a new connection attempt is aborted.
 
-|[[mongodb-property-mongodb-socket-timeout-ms]]<<mongodb-property-mongodb-socket-timeout-ms, `mongodb.socket.timeout.ms`>> +
+|[[mongodb-property-mongodb-socket-timeout-ms]]<<mongodb-property-mongodb-socket-timeout-ms, `mongodb.socket{zwsp}.timeout.ms`>> 
 |0
-|The number of milli-seconds before a send/receive on the socket can take before a timeout occurs.
+|The number of milliseconds before a send/receive on the socket can take before a timeout occurs.
 A value of `0` disables this behavior.
 
-|[[mongodb-property-mongodb-server-selection-timeout-ms]]<<mongodb-property-mongodb-server-selection-timeout-ms, `mongodb.server.selection.timeout.ms`>> +
+|[[mongodb-property-mongodb-server-selection-timeout-ms]]<<mongodb-property-mongodb-server-selection-timeout-ms, `mongodb.server{zwsp}.selection{zwsp}.timeout.ms`>> 
 |30000 (30 seconds)
-|The number of milli-seconds the driver will wait to select a server before it times out and throws an error.
+|The number of milliseconds the driver will wait to select a server before it times out and throws an error.
 
 |===
 
@@ -995,7 +1317,7 @@ The attempts to reconnect are controlled by three properties:
 
 Each delay is double that of the prior delay, up to the maximum delay. Given the default values, the following table shows the delay for each failed connection attempt and the total accumulated time before failure.
 
-[cols="30%a,30%a,40%a"]
+[cols="30%a,30%a,40%a",options="header"]
 |===
 |Reconnection attempt number
 |Delay before attempt, in seconds

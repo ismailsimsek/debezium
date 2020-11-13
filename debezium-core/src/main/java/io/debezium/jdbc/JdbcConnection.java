@@ -27,13 +27,21 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.debezium.DebeziumException;
 import io.debezium.annotation.NotThreadSafe;
 import io.debezium.annotation.ThreadSafe;
 import io.debezium.config.Configuration;
@@ -58,6 +66,7 @@ import io.debezium.util.Strings;
 @NotThreadSafe
 public class JdbcConnection implements AutoCloseable {
 
+    private static final int WAIT_FOR_CLOSE_SECONDS = 10;
     private static final char STATEMENT_DELIMITER = ';';
     private static final int STATEMENT_CACHE_CAPACITY = 10_000;
     private final static Logger LOGGER = LoggerFactory.getLogger(JdbcConnection.class);
@@ -88,6 +97,29 @@ public class JdbcConnection implements AutoCloseable {
          * @throws SQLException if there is an error connecting to the database
          */
         Connection connect(JdbcConfiguration config) throws SQLException;
+    }
+
+    private class ConnectionFactoryDecorator implements ConnectionFactory {
+        private final ConnectionFactory defaultConnectionFactory;
+        private final Supplier<ClassLoader> classLoaderSupplier;
+        private ConnectionFactory customConnectionFactory;
+
+        private ConnectionFactoryDecorator(ConnectionFactory connectionFactory, Supplier<ClassLoader> classLoaderSupplier) {
+            this.defaultConnectionFactory = connectionFactory;
+            this.classLoaderSupplier = classLoaderSupplier;
+        }
+
+        @Override
+        public Connection connect(JdbcConfiguration config) throws SQLException {
+            if (Strings.isNullOrEmpty(config.getConnectionFactoryClassName())) {
+                return defaultConnectionFactory.connect(config);
+            }
+            if (customConnectionFactory == null) {
+                customConnectionFactory = config.getInstance(JdbcConfiguration.CONNECTION_FACTORY_CLASS,
+                        ConnectionFactory.class, classLoaderSupplier);
+            }
+            return customConnectionFactory.connect(config);
+        }
     }
 
     /**
@@ -280,7 +312,17 @@ public class JdbcConnection implements AutoCloseable {
      * @param connectionFactory the connection factory; may not be null
      */
     public JdbcConnection(Configuration config, ConnectionFactory connectionFactory) {
-        this(config, connectionFactory, null);
+        this(config, connectionFactory, (Operations) null);
+    }
+
+    /**
+     * Create a new instance with the given configuration and connection factory.
+     *
+     * @param config the configuration; may not be null
+     * @param connectionFactory the connection factory; may not be null
+     */
+    public JdbcConnection(Configuration config, ConnectionFactory connectionFactory, Supplier<ClassLoader> classLoaderSupplier) {
+        this(config, connectionFactory, null, null, classLoaderSupplier);
     }
 
     /**
@@ -306,8 +348,23 @@ public class JdbcConnection implements AutoCloseable {
      */
     protected JdbcConnection(Configuration config, ConnectionFactory connectionFactory, Operations initialOperations,
                              Consumer<Configuration.Builder> adapter) {
+        this(config, connectionFactory, initialOperations, adapter, null);
+    }
+
+    /**
+     * Create a new instance with the given configuration and connection factory, and specify the operations that should be
+     * run against each newly-established connection.
+     *
+     * @param config the configuration; may not be null
+     * @param connectionFactory the connection factory; may not be null
+     * @param initialOperations the initial operations that should be run on each new connection; may be null
+     * @param adapter the function that can be called to update the configuration with defaults
+     * @param classLoaderSupplier class loader supplier
+     */
+    protected JdbcConnection(Configuration config, ConnectionFactory connectionFactory, Operations initialOperations,
+                             Consumer<Configuration.Builder> adapter, Supplier<ClassLoader> classLoaderSupplier) {
         this.config = adapter == null ? config : config.edit().apply(adapter).build();
-        this.factory = connectionFactory;
+        this.factory = classLoaderSupplier == null ? connectionFactory : new ConnectionFactoryDecorator(connectionFactory, classLoaderSupplier);
         this.initialOps = initialOperations;
         this.conn = null;
     }
@@ -330,6 +387,17 @@ public class JdbcConnection implements AutoCloseable {
         Connection conn = connection();
         if (!conn.getAutoCommit()) {
             conn.commit();
+        }
+        return this;
+    }
+
+    public synchronized JdbcConnection rollback() throws SQLException {
+        if (!isConnected()) {
+            return this;
+        }
+        Connection conn = connection();
+        if (!conn.getAutoCommit()) {
+            conn.rollback();
         }
         return this;
     }
@@ -861,11 +929,40 @@ public class JdbcConnection implements AutoCloseable {
                 statementCache.values().forEach(this::cleanupPreparedStatement);
                 statementCache.clear();
                 LOGGER.trace("Closing database connection");
-                conn.close();
+                doClose();
             }
             finally {
                 conn = null;
             }
+        }
+    }
+
+    private void doClose() throws SQLException {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        // attempting to close the connection gracefully
+        Future<Object> futureClose = executor.submit(() -> {
+            conn.close();
+            LOGGER.info("Connection gracefully closed");
+            return null;
+        });
+        try {
+            futureClose.get(WAIT_FOR_CLOSE_SECONDS, TimeUnit.SECONDS);
+        }
+        catch (ExecutionException e) {
+            if (e.getCause() instanceof SQLException) {
+                throw (SQLException) e.getCause();
+            }
+            else if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            }
+            throw new DebeziumException(e.getCause());
+        }
+        catch (TimeoutException | InterruptedException e) {
+            LOGGER.warn("Failed to close database connection by calling close(), attempting abort()");
+            conn.abort(Runnable::run);
+        }
+        finally {
+            executor.shutdownNow();
         }
     }
 
@@ -1105,11 +1202,13 @@ public class JdbcConnection implements AutoCloseable {
      * included in column.include.list.
      */
     protected Optional<ColumnEditor> readTableColumn(ResultSet columnMetadata, TableId tableId, ColumnNameFilter columnFilter) throws SQLException {
+        // Oracle drivers require this for LONG/LONGRAW to be fetched first.
+        final String defaultValue = columnMetadata.getString(13);
+
         final String columnName = columnMetadata.getString(4);
         if (columnFilter == null || columnFilter.matches(tableId.catalog(), tableId.schema(), tableId.table(), columnName)) {
             final ColumnEditor column = Column.editor().name(columnName);
-            String columnType = columnMetadata.getString(6);
-            column.type(columnType);
+            column.type(columnMetadata.getString(6));
             column.length(columnMetadata.getInt(7));
             if (columnMetadata.getObject(9) != null) {
                 column.scale(columnMetadata.getInt(9));
@@ -1128,7 +1227,6 @@ public class JdbcConnection implements AutoCloseable {
 
             column.nativeType(resolveNativeType(column.typeName()));
             column.jdbcType(resolveJdbcType(columnMetadata.getInt(5), column.nativeType()));
-            final String defaultValue = columnMetadata.getString(13);
             if (defaultValue != null) {
                 getDefaultValue(column.create(), defaultValue).ifPresent(column::defaultValue);
             }

@@ -5,8 +5,8 @@
  */
 package io.debezium.connector.mongodb;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
 import org.apache.kafka.connect.data.Schema;
@@ -23,6 +23,7 @@ import com.mongodb.MongoClient;
 import com.mongodb.util.JSONSerializers;
 import com.mongodb.util.ObjectSerializer;
 
+import io.debezium.annotation.ThreadSafe;
 import io.debezium.connector.mongodb.FieldSelector.FieldFilter;
 import io.debezium.data.Envelope;
 import io.debezium.data.Envelope.FieldName;
@@ -36,6 +37,7 @@ import io.debezium.util.SchemaNameAdjuster;
 /**
  * @author Chris Cranford
  */
+@ThreadSafe
 public class MongoDbSchema implements DatabaseSchema<CollectionId> {
 
     /**
@@ -56,7 +58,7 @@ public class MongoDbSchema implements DatabaseSchema<CollectionId> {
     private final Schema sourceSchema;
     private final SchemaNameAdjuster adjuster = SchemaNameAdjuster.create(LOGGER);
     private final Function<Document, String> valueTransformer;
-    private final Map<CollectionId, MongoDbCollectionSchema> collections = new HashMap<>();
+    private final ConcurrentMap<CollectionId, MongoDbCollectionSchema> collections = new ConcurrentHashMap<>();
 
     public MongoDbSchema(Filters filters, TopicSelector<CollectionId> topicSelector, Schema sourceSchema) {
         this.filters = filters;
@@ -83,8 +85,8 @@ public class MongoDbSchema implements DatabaseSchema<CollectionId> {
             final Schema valueSchema = SchemaBuilder.struct()
                     .name(adjuster.adjust(Envelope.schemaName(topicName)))
                     .field(FieldName.AFTER, Json.builder().optional().build())
-                    .field("patch", Json.builder().optional().build())
-                    .field("filter", Json.builder().optional().build())
+                    .field(MongoDbFieldName.PATCH, Json.builder().optional().build())
+                    .field(MongoDbFieldName.FILTER, Json.builder().optional().build())
                     .field(FieldName.SOURCE, sourceSchema)
                     .field(FieldName.OPERATION, Schema.OPTIONAL_STRING_SCHEMA)
                     .field(FieldName.TIMESTAMP, Schema.OPTIONAL_INT64_SCHEMA)

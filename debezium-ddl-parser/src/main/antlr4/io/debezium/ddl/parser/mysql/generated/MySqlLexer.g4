@@ -148,6 +148,7 @@ NUMBER:                              'NUMBER';
 ON:                                  'ON';
 OPTIMIZE:                            'OPTIMIZE';
 OPTION:                              'OPTION';
+OPTIONAL:                            'OPTIONAL';
 OPTIONALLY:                          'OPTIONALLY';
 OR:                                  'OR';
 ORDER:                               'ORDER';
@@ -416,6 +417,7 @@ EXPIRE:                              'EXPIRE';
 EXPORT:                              'EXPORT';
 EXTENDED:                            'EXTENDED';
 EXTENT_SIZE:                         'EXTENT_SIZE';
+FAILED_LOGIN_ATTEMPTS:               'FAILED_LOGIN_ATTEMPTS';
 FAST:                                'FAST';
 FAULTS:                              'FAULTS';
 FIELDS:                              'FIELDS';
@@ -435,6 +437,7 @@ GROUP_REPLICATION:                   'GROUP_REPLICATION';
 HANDLER:                             'HANDLER';
 HASH:                                'HASH';
 HELP:                                'HELP';
+HISTORY:                             'HISTORY';
 HOST:                                'HOST';
 HOSTS:                               'HOSTS';
 IDENTIFIED:                          'IDENTIFIED';
@@ -531,6 +534,7 @@ PARTIAL:                             'PARTIAL';
 PARTITIONING:                        'PARTITIONING';
 PARTITIONS:                          'PARTITIONS';
 PASSWORD:                            'PASSWORD';
+PASSWORD_LOCK_TIME:                  'PASSWORD_LOCK_TIME';
 PHASE:                               'PHASE';
 PLUGIN:                              'PLUGIN';
 PLUGIN_DIR:                          'PLUGIN_DIR';
@@ -569,6 +573,7 @@ RESET:                               'RESET';
 RESUME:                              'RESUME';
 RETURNED_SQLSTATE:                   'RETURNED_SQLSTATE';
 RETURNS:                             'RETURNS';
+REUSE:                               'REUSE';
 ROLE:                                'ROLE';
 ROLLBACK:                            'ROLLBACK';
 ROLLUP:                              'ROLLUP';
@@ -627,6 +632,7 @@ TRANSACTION:                         'TRANSACTION';
 TRANSACTIONAL:                       'TRANSACTIONAL';
 TRIGGERS:                            'TRIGGERS';
 TRUNCATE:                            'TRUNCATE';
+UNBOUNDED:                           'UNBOUNDED';
 UNDEFINED:                           'UNDEFINED';
 UNDOFILE:                            'UNDOFILE';
 UNDO_BUFFER_SIZE:                    'UNDO_BUFFER_SIZE';
@@ -1090,6 +1096,12 @@ Y_FUNCTION:                          'Y';
 X_FUNCTION:                          'X';
 
 
+// MariaDB tokens
+VIA:                                 'VIA';
+LASTVAL:                             'LASTVAL';
+NEXTVAL:                             'NEXTVAL';
+SETVAL:                              'SETVAL';
+PREVIOUS:                            'PREVIOUS';
 
 // Operators
 // Operators. Assigns
@@ -1236,7 +1248,7 @@ fragment CHARSET_NAME:               ARMSCII8 | ASCII | BIG5 | BINARY | CP1250
                                      | UTF8 | UTF8MB3 | UTF8MB4;
 
 fragment EXPONENT_NUM_PART:          'E' [-+]? DEC_DIGIT+;
-fragment ID_LITERAL:                 [A-Z_$0-9]*?[A-Z_$]+?[A-Z_$0-9]*;
+fragment ID_LITERAL:                 [A-Z_$0-9\u0080-\uFFFF]*?[A-Z_$\u0080-\uFFFF]+?[A-Z_$0-9\u0080-\uFFFF]*;
 fragment DQUOTA_STRING:              '"' ( '\\'. | '""' | ~('"'| '\\') )* '"';
 fragment SQUOTA_STRING:              '\'' ('\\'. | '\'\'' | ~('\'' | '\\'))* '\'';
 fragment BQUOTA_STRING:              '`' ( '\\'. | '``' | ~('`'|'\\'))* '`';

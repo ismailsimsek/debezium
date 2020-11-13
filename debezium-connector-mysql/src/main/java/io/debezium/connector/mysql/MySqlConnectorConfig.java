@@ -41,7 +41,7 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
     /**
      * The set of predefined BigIntUnsignedHandlingMode options or aliases.
      */
-    public static enum BigIntUnsignedHandlingMode implements EnumeratedValue {
+    public enum BigIntUnsignedHandlingMode implements EnumeratedValue {
         /**
          * Represent {@code BIGINT UNSIGNED} values as precise {@link BigDecimal} values, which are
          * represented in change events in a binary form. This is precise but difficult to use.
@@ -287,6 +287,15 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
         MINIMAL("minimal"),
 
         /**
+         * The connector holds a (Percona-specific) backup lock for just the initial portion of the snapshot while the connector
+         * reads the database schemas and other metadata. This lock will only block DDL and DML on non-transactional tables
+         * (MyISAM etc.). The remaining work in a snapshot involves selecting all rows from each table, and this can be done in a
+         * consistent fashion using the REPEATABLE READ transaction even when the global read lock is no longer held and while other
+         * MySQL clients are updating the database.
+         */
+        MINIMAL_PERCONA("minimal_percona"),
+
+        /**
          * This mode will avoid using ANY table locks during the snapshot process.  This mode can only be used with SnapShotMode
          * set to schema_only or schema_only_recovery.
          */
@@ -301,6 +310,24 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
         @Override
         public String getValue() {
             return value;
+        }
+
+        public boolean usesMinimalLocking() {
+            return value.equals(MINIMAL.value) || value.equals(MINIMAL_PERCONA.value);
+        }
+
+        /**
+        * Determine which flavour of MySQL locking to use.
+        *
+        * @return the correct SQL to obtain a global lock for the current mode
+        */
+        public String getLockStatement() {
+            if (value.equals(MINIMAL_PERCONA.value)) {
+                return "LOCK TABLES FOR BACKUP";
+            }
+            else {
+                return "FLUSH TABLES WITH READ LOCK";
+            }
         }
 
         /**
@@ -609,7 +636,7 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
                     "Password to unlock the keystore file (store password) specified by 'ssl.trustore' configuration property or the 'javax.net.ssl.trustStore' system or JVM property.");
 
     public static final Field TABLES_IGNORE_BUILTIN = RelationalDatabaseConnectorConfig.TABLE_IGNORE_BUILTIN
-            .withDependents(DATABASE_INCLUDE_LIST_NAME, DATABASE_WHITELIST_NAME);
+            .withDependents(DATABASE_INCLUDE_LIST_NAME);
 
     public static final Field JDBC_DRIVER = Field.create("database.jdbc.driver")
             .withDisplayName("Jdbc Driver Class Name")
@@ -629,7 +656,7 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.HIGH)
-            .withDependents(TABLE_INCLUDE_LIST_NAME, TABLE_WHITELIST_NAME)
+            .withDependents(TABLE_INCLUDE_LIST_NAME)
             .withDescription("The databases for which changes are to be captured");
 
     /**
@@ -642,7 +669,7 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withWidth(Width.LONG)
             .withImportance(Importance.LOW)
             .withInvisibleRecommender()
-            .withDependents(TABLE_INCLUDE_LIST_NAME, TABLE_WHITELIST_NAME)
+            .withDependents(TABLE_INCLUDE_LIST_NAME)
             .withDescription("The databases for which changes are to be captured (deprecated, use \"" + DATABASE_INCLUDE_LIST.name() + "\" instead)");
 
     /**
@@ -683,7 +710,7 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
             .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.HIGH)
-            .withDependents(TABLE_INCLUDE_LIST_NAME, TABLE_WHITELIST_NAME)
+            .withDependents(TABLE_INCLUDE_LIST_NAME)
             .withDescription("The source UUIDs used to include GTID ranges when determine the starting position in the MySQL server's binlog.");
 
     /**
@@ -917,7 +944,7 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
             Heartbeat.HEARTBEAT_TOPICS_PREFIX, DATABASE_HISTORY, INCLUDE_SCHEMA_CHANGES, INCLUDE_SQL_QUERY,
             TABLE_WHITELIST, TABLE_INCLUDE_LIST, TABLE_BLACKLIST, TABLE_EXCLUDE_LIST, TABLES_IGNORE_BUILTIN,
             DATABASE_WHITELIST, DATABASE_INCLUDE_LIST, DATABASE_BLACKLIST, DATABASE_EXCLUDE_LIST,
-            COLUMN_BLACKLIST, COLUMN_EXCLUDE_LIST, MSG_KEY_COLUMNS,
+            COLUMN_BLACKLIST, COLUMN_EXCLUDE_LIST, COLUMN_INCLUDE_LIST, MSG_KEY_COLUMNS,
             RelationalDatabaseConnectorConfig.MASK_COLUMN_WITH_HASH,
             RelationalDatabaseConnectorConfig.MASK_COLUMN,
             RelationalDatabaseConnectorConfig.TRUNCATE_COLUMN,
@@ -1003,7 +1030,7 @@ public class MySqlConnectorConfig extends RelationalDatabaseConnectorConfig {
                 DatabaseHistory.STORE_ONLY_MONITORED_TABLES_DDL);
         Field.group(config, "Events", INCLUDE_SCHEMA_CHANGES, INCLUDE_SQL_QUERY, TABLES_IGNORE_BUILTIN,
                 DATABASE_WHITELIST, DATABASE_INCLUDE_LIST, TABLE_WHITELIST, TABLE_INCLUDE_LIST,
-                COLUMN_BLACKLIST, COLUMN_EXCLUDE_LIST, TABLE_BLACKLIST, TABLE_EXCLUDE_LIST,
+                COLUMN_BLACKLIST, COLUMN_EXCLUDE_LIST, COLUMN_INCLUDE_LIST, TABLE_BLACKLIST, TABLE_EXCLUDE_LIST,
                 DATABASE_BLACKLIST, DATABASE_EXCLUDE_LIST, MSG_KEY_COLUMNS,
                 RelationalDatabaseConnectorConfig.MASK_COLUMN_WITH_HASH,
                 RelationalDatabaseConnectorConfig.MASK_COLUMN,

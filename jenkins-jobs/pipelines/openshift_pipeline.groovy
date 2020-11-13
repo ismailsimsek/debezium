@@ -42,7 +42,7 @@ pipeline {
                 script {
                     env.STRZ_RESOURCES = "${env.WORKSPACE}/strimzi/install/cluster-operator"
                 }
-                copyArtifacts projectName: 'downstream-strimzi-prepare-job', filter: 'amq-streams-install-examples.zip', selector: lastSuccessful()
+                copyArtifacts projectName: 'ocp-downstream-strimzi-prepare-job', filter: 'amq-streams-install-examples.zip', selector: lastSuccessful()
                 unzip zipFile: 'amq-streams-install-examples.zip', dir: 'strimzi'
             }
         }
@@ -57,6 +57,8 @@ pipeline {
                     env.OCP_PROJECT_POSTGRESQL = "debezium-${BUILD_NUMBER}-postgresql"
                     env.OCP_PROJECT_SQLSERVER = "debezium-${BUILD_NUMBER}-sqlserver"
                     env.OCP_PROJECT_MONGO = "debezium-${BUILD_NUMBER}-mongo"
+                    env.OCP_PROJECT_DB2 = "debezium-${BUILD_NUMBER}-db2"
+                    env.TEST_PROPERTY_VERSION_KAFKA = env.TEST_VERSION_KAFKA ? "-Dversion.kafka=${env.TEST_VERSION_KAFKA}" : ""
                 }
                 withCredentials([
                         usernamePassword(credentialsId: "${OCP_CREDENTIALS}", usernameVariable: 'OCP_USERNAME', passwordVariable: 'OCP_PASSWORD'),
@@ -71,6 +73,7 @@ pipeline {
                     oc new-project ${OCP_PROJECT_POSTGRESQL}
                     oc new-project ${OCP_PROJECT_SQLSERVER}
                     oc new-project ${OCP_PROJECT_MONGO}
+                    oc new-project ${OCP_PROJECT_DB2}
                     '''
                     sh '''
                     set -x
@@ -79,8 +82,13 @@ pipeline {
                     '''
                     sh '''
                     set -x
+                    oc project ${OCP_PROJECT_SQLSERVER}
                     oc adm policy add-scc-to-user anyuid system:serviceaccount:${OCP_PROJECT_SQLSERVER}:default
+                    oc project ${OCP_PROJECT_MONGO}
                     oc adm policy add-scc-to-user anyuid system:serviceaccount:${OCP_PROJECT_MONGO}:default
+                    oc project ${OCP_PROJECT_DB2}
+                    oc adm policy add-scc-to-user anyuid system:serviceaccount:${OCP_PROJECT_DB2}:default
+                    oc adm policy add-scc-to-user privileged system:serviceaccount:${OCP_PROJECT_DB2}:default
                     '''
                     sh '''
                     set -x
@@ -138,9 +146,11 @@ pipeline {
                     -Dtest.ocp.project.postgresql="${OCP_PROJECT_POSTGRESQL}" \\
                     -Dtest.ocp.project.sqlserver="${OCP_PROJECT_SQLSERVER}"  \\
                     -Dtest.ocp.project.mongo="${OCP_PROJECT_MONGO}" \\
+                    -Dtest.ocp.project.db2="${OCP_PROJECT_DB2}" \\
                     -Dimage.fullname="${DBZ_CONNECT_IMAGE}" \\
                     -Dtest.ocp.pull.secret.paths="${SECRET_PATH}" \\
-                    -Dtest.wait.scale="${TEST_WAIT_SCALE}"
+                    -Dtest.wait.scale="${TEST_WAIT_SCALE}" \\
+                    ${TEST_PROPERTY_VERSION_KAFKA}
                     '''
                 }
             }
@@ -163,6 +173,7 @@ OpenShift interoperability test run ${BUILD_URL} finished with result: ${current
             oc delete project ${OCP_PROJECT_POSTGRESQL}
             oc delete project ${OCP_PROJECT_SQLSERVER}
             oc delete project ${OCP_PROJECT_MONGO}
+            oc delete project ${OCP_PROJECT_DB2}
             '''
         }
     }

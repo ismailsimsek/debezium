@@ -18,6 +18,7 @@ import static org.junit.Assert.fail;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -92,13 +93,13 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
      */
     private static final String INSERT_STMT = "INSERT INTO s1.a (aa) VALUES (1);" +
             "INSERT INTO s2.a (aa) VALUES (1);";
-    private static final String SETUP_TABLES_STMT = "DROP SCHEMA IF EXISTS s1 CASCADE;" +
+    private static final String CREATE_TABLES_STMT = "DROP SCHEMA IF EXISTS s1 CASCADE;" +
             "DROP SCHEMA IF EXISTS s2 CASCADE;" +
             "CREATE SCHEMA s1; " +
             "CREATE SCHEMA s2; " +
             "CREATE TABLE s1.a (pk SERIAL, aa integer, PRIMARY KEY(pk));" +
-            "CREATE TABLE s2.a (pk SERIAL, aa integer, bb varchar(20), PRIMARY KEY(pk));" +
-            INSERT_STMT;
+            "CREATE TABLE s2.a (pk SERIAL, aa integer, bb varchar(20), PRIMARY KEY(pk));";
+    private static final String SETUP_TABLES_STMT = CREATE_TABLES_STMT + INSERT_STMT;
     private PostgresConnector connector;
 
     @Rule
@@ -601,6 +602,7 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                 .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE);
         start(PostgresConnector.class, configBuilder.build());
         assertConnectorIsRunning();
+        waitForStreamingRunning();
 
         SourceRecords actualRecords = consumeRecordsByTopic(6);
         assertKey(actualRecords.allRecordsInOrder().get(0), "pk", 1);
@@ -1056,6 +1058,63 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
     }
 
     @Test
+    @FixFor("DBZ-2660")
+    public void shouldRegularlyFlushLsnWithTxMonitoring() throws InterruptedException, SQLException {
+        final int recordCount = 10;
+        TestHelper.execute(SETUP_TABLES_STMT);
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.NEVER.getValue())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                .with(PostgresConnectorConfig.TABLE_INCLUDE_LIST, "s1.a")
+                .with(PostgresConnectorConfig.PROVIDE_TRANSACTION_METADATA, true)
+                .build();
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+        waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
+        // there shouldn't be any snapshot records
+        assertNoRecordsToConsume();
+
+        final String txTopic = topicName("transaction");
+        TestHelper.execute(INSERT_STMT);
+        final SourceRecords firstRecords = consumeDmlRecordsByTopic(1);
+        assertThat(firstRecords.topics().size()).isEqualTo(2);
+        assertThat(firstRecords.recordsForTopic(txTopic).size()).isGreaterThanOrEqualTo(2);
+        Assertions.assertThat(firstRecords.recordsForTopic(txTopic).get(1).sourceOffset().containsKey("lsn_commit")).isTrue();
+        stopConnector();
+        assertConnectorNotRunning();
+
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+        waitForStreamingRunning("postgres", TestHelper.TEST_SERVER);
+        // there shouldn't be any snapshot records, only potentially transaction messages
+        assertOnlyTransactionRecordsToConsume();
+
+        final Set<String> flushLsn = new HashSet<>();
+        try (final PostgresConnection connection = TestHelper.create()) {
+            flushLsn.add(getConfirmedFlushLsn(connection));
+            for (int i = 2; i <= recordCount + 2; i++) {
+                TestHelper.execute(INSERT_STMT);
+
+                final SourceRecords actualRecords = consumeDmlRecordsByTopic(1);
+                assertThat(actualRecords.topics().size()).isEqualTo(2);
+                assertThat(actualRecords.recordsForTopic(txTopic).size()).isGreaterThanOrEqualTo(2);
+                assertThat(actualRecords.recordsForTopic(topicName("s1.a")).size()).isEqualTo(1);
+
+                // Wait max 2 seconds for LSN change
+                try {
+                    Awaitility.await().atMost(2, TimeUnit.SECONDS).ignoreExceptions().until(() -> flushLsn.add(getConfirmedFlushLsn(connection)));
+                }
+                catch (ConditionTimeoutException e) {
+                    // We do not require all flushes to succeed in time
+                }
+            }
+        }
+        // Theoretically the LSN should change for each record but in reality there can be
+        // unfortunate timings so let's suppose the change will happen in 75 % of cases
+        Assertions.assertThat(flushLsn.size()).isGreaterThanOrEqualTo((recordCount * 3) / 4);
+    }
+
+    @Test
     @FixFor("DBZ-892")
     @SkipWhenDecoderPluginNameIsNot(value = SkipWhenDecoderPluginNameIsNot.DecoderPluginName.WAL2JSON, reason = "Only wal2json decoder emits empty events and passes them to streaming source")
     public void shouldFlushLsnOnEmptyMessage() throws InterruptedException, SQLException {
@@ -1153,6 +1212,58 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
         assertThat(s2recs.size()).isEqualTo(2);
         VerifyRecord.isValidRead(s1recs.get(0), PK_FIELD, 1);
         VerifyRecord.isValidRead(s1recs.get(1), PK_FIELD, 2);
+        VerifyRecord.isValidRead(s2recs.get(0), PK_FIELD, 1);
+        VerifyRecord.isValidRead(s2recs.get(1), PK_FIELD, 2);
+    }
+
+    @Test
+    @FixFor("DBZ-2456")
+    public void shouldAllowForSelectiveSnapshot() throws InterruptedException {
+        TestHelper.execute(SETUP_TABLES_STMT);
+        Configuration.Builder configBuilder = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS.name())
+                .with(CommonConnectorConfig.SNAPSHOT_MODE_TABLES, "s1.a")
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE);
+
+        start(PostgresConnector.class, configBuilder.build());
+        assertConnectorIsRunning();
+
+        /* Snapshot must be taken only for the listed tables */
+        SourceRecords actualRecords = consumeRecordsByTopic(1);
+        List<SourceRecord> s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        List<SourceRecord> s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+
+        assertThat(s1recs.size()).isEqualTo(1);
+        assertThat(s2recs).isNull();
+        VerifyRecord.isValidRead(s1recs.get(0), PK_FIELD, 1);
+
+        /* streaming should work normally */
+        TestHelper.execute(INSERT_STMT);
+        actualRecords = consumeRecordsByTopic(2);
+
+        s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+
+        assertThat(s1recs.size()).isEqualTo(1);
+        assertThat(s2recs.size()).isEqualTo(1);
+        VerifyRecord.isValidInsert(s1recs.get(0), PK_FIELD, 2);
+        VerifyRecord.isValidInsert(s2recs.get(0), PK_FIELD, 2);
+
+        stopConnector();
+
+        /* start the connector back up and make sure snapshot is being taken */
+        start(PostgresConnector.class, configBuilder
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.TRUE)
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE_TABLES, "s2.a")
+                .build());
+        assertConnectorIsRunning();
+
+        actualRecords = consumeRecordsByTopic(2);
+        s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+
+        assertThat(s2recs.size()).isEqualTo(2);
+        assertThat(s1recs).isNull();
         VerifyRecord.isValidRead(s2recs.get(0), PK_FIELD, 1);
         VerifyRecord.isValidRead(s2recs.get(1), PK_FIELD, 2);
     }
@@ -1374,8 +1485,160 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
         stopConnector(value -> assertThat(logInterceptor.containsMessage("Previous initial snapshot completed, no snapshot will be performed")).isTrue());
     }
 
+    @Test
+    @FixFor("DBZ-2094")
+    public void shouldResumeStreamingFromSlotPositionForCustomSnapshot() throws Exception {
+        TestHelper.execute(SETUP_TABLES_STMT);
+        // Perform an regular snapshot
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.CUSTOM.getValue())
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomStartFromStreamingTestSnapshot.class.getName())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .build();
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+        waitForStreamingRunning();
+
+        SourceRecords actualRecords = consumeRecordsByTopic(2);
+        List<SourceRecord> s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        List<SourceRecord> s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+        assertThat(s1recs.size()).isEqualTo(1);
+        assertThat(s2recs.size()).isEqualTo(1);
+        VerifyRecord.isValidRead(s1recs.get(0), PK_FIELD, 1);
+        VerifyRecord.isValidRead(s2recs.get(0), PK_FIELD, 1);
+
+        stopConnector();
+
+        // Insert records while connector is stopped
+        TestHelper.execute(INSERT_STMT);
+
+        // Perform catch up streaming and resnapshot everything
+        config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.CUSTOM.getValue())
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomStartFromStreamingTestSnapshot.class.getName())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .build();
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+
+        waitForSnapshotToBeCompleted();
+
+        // Expect duplicate records from the snapshot and while streaming is running
+        actualRecords = consumeRecordsByTopic(6);
+
+        s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+        assertThat(s1recs.size()).isEqualTo(3);
+        assertThat(s2recs.size()).isEqualTo(3);
+
+        // Validate the first record is from streaming
+        VerifyRecord.isValidInsert(s1recs.get(0), PK_FIELD, 2);
+        VerifyRecord.isValidInsert(s2recs.get(0), PK_FIELD, 2);
+
+        // Validate the rest of the records are from the snapshot
+        VerifyRecord.isValidRead(s1recs.get(1), PK_FIELD, 1);
+        VerifyRecord.isValidRead(s1recs.get(2), PK_FIELD, 2);
+        VerifyRecord.isValidRead(s2recs.get(1), PK_FIELD, 1);
+        VerifyRecord.isValidRead(s2recs.get(2), PK_FIELD, 2);
+
+        TestHelper.assertNoOpenTransactions();
+    }
+
+    @Test
+    @FixFor("DBZ-2094")
+    public void customSnapshotterSkipsTablesOnRestart() throws Exception {
+        final LogInterceptor logInterceptor = new LogInterceptor();
+
+        TestHelper.execute(SETUP_TABLES_STMT);
+        // Perform an regular snapshot using the always snapshotter
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.ALWAYS.getValue())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .build();
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+        waitForStreamingRunning();
+
+        SourceRecords actualRecords = consumeRecordsByTopic(2);
+        List<SourceRecord> s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        List<SourceRecord> s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+        assertThat(s1recs.size()).isEqualTo(1);
+        assertThat(s2recs.size()).isEqualTo(1);
+        VerifyRecord.isValidRead(s1recs.get(0), PK_FIELD, 1);
+        VerifyRecord.isValidRead(s2recs.get(0), PK_FIELD, 1);
+
+        stopConnector();
+
+        // Insert records while connector is stopped
+        TestHelper.execute(INSERT_STMT);
+
+        // Perform a custom partial snapshot
+        config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.CUSTOM.getValue())
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomPartialTableTestSnapshot.class.getName())
+                .with(PostgresConnectorConfig.DROP_SLOT_ON_STOP, Boolean.FALSE)
+                .build();
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+
+        waitForSnapshotToBeCompleted();
+
+        // wait for the second streaming phase
+        waitForStreamingRunning();
+
+        actualRecords = consumeRecordsByTopic(4);
+
+        s1recs = actualRecords.recordsForTopic(topicName("s1.a"));
+        s2recs = actualRecords.recordsForTopic(topicName("s2.a"));
+        assertThat(s1recs.size()).isEqualTo(3);
+        assertThat(s2recs.size()).isEqualTo(1);
+
+        // streaming records
+        VerifyRecord.isValidInsert(s1recs.get(0), PK_FIELD, 2);
+        VerifyRecord.isValidInsert(s2recs.get(0), PK_FIELD, 2);
+
+        // snapshot records
+        VerifyRecord.isValidRead(s1recs.get(1), PK_FIELD, 1);
+        VerifyRecord.isValidRead(s1recs.get(2), PK_FIELD, 2);
+
+        assertNoRecordsToConsume();
+
+        TestHelper.assertNoOpenTransactions();
+
+        stopConnector(value -> assertThat(logInterceptor.containsMessage("For table 's2.a' the select statement was not provided, skipping table")).isTrue());
+    }
+
+    @Test
+    @FixFor("DBZ-2608")
+    public void testCustomSnapshotterSnapshotCompleteLifecycleHook() throws Exception {
+        TestHelper.execute("DROP SCHEMA IF EXISTS s1 CASCADE;" +
+                "CREATE SCHEMA s1; " +
+                "CREATE TABLE s1.lifecycle_state (hook text, state text, PRIMARY KEY(hook));");
+        Configuration config = TestHelper.defaultConfig()
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE, SnapshotMode.CUSTOM.getValue())
+                .with(PostgresConnectorConfig.SNAPSHOT_MODE_CLASS, CustomLifecycleHookTestSnapshot.class.getName())
+                .build();
+        start(PostgresConnector.class, config);
+        assertConnectorIsRunning();
+
+        waitForSnapshotToBeCompleted();
+
+        try (PostgresConnection connection = TestHelper.create()) {
+            List<String> snapshotCompleteState = connection.queryAndMap(
+                    "SELECT state FROM s1.lifecycle_state WHERE hook like 'snapshotComplete'",
+                    rs -> {
+                        final List<String> ret = new ArrayList<>();
+                        while (rs.next()) {
+                            ret.add(rs.getString(1));
+                        }
+                        return ret;
+                    });
+            assertEquals(snapshotCompleteState, Collections.singletonList("complete"));
+        }
+    }
+
     private String getConfirmedFlushLsn(PostgresConnection connection) throws SQLException {
-        return connection.prepareQueryAndMap(
+        final String lsn = connection.prepareQueryAndMap(
                 "select * from pg_replication_slots where slot_name = ? and database = ? and plugin = ?", statement -> {
                     statement.setString(1, ReplicationConnection.Builder.DEFAULT_SLOT_NAME);
                     statement.setString(2, "postgres");
@@ -1390,6 +1653,8 @@ public class PostgresConnectorIT extends AbstractConnectorTest {
                     }
                     return null;
                 });
+        connection.rollback();
+        return lsn;
     }
 
     private void assertFieldAbsent(SourceRecord record, String fieldName) {

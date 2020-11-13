@@ -175,11 +175,11 @@ public class MySqlAntlrDdlParser extends AntlrDdlParser<MySqlLexer, MySqlParser>
                 new DataTypeEntry(Types.TIMESTAMP, MySqlParser.DATETIME),
                 new DataTypeEntry(Types.BINARY, MySqlParser.BINARY),
                 new DataTypeEntry(Types.VARBINARY, MySqlParser.VARBINARY),
+                new DataTypeEntry(Types.BLOB, MySqlParser.BLOB),
                 new DataTypeEntry(Types.INTEGER, MySqlParser.YEAR)));
         dataTypeResolverBuilder.registerDataTypes(MySqlParser.SimpleDataTypeContext.class.getCanonicalName(), Arrays.asList(
                 new DataTypeEntry(Types.DATE, MySqlParser.DATE),
                 new DataTypeEntry(Types.BLOB, MySqlParser.TINYBLOB),
-                new DataTypeEntry(Types.BLOB, MySqlParser.BLOB),
                 new DataTypeEntry(Types.BLOB, MySqlParser.MEDIUMBLOB),
                 new DataTypeEntry(Types.BLOB, MySqlParser.LONGBLOB),
                 new DataTypeEntry(Types.BOOLEAN, MySqlParser.BOOL),
@@ -323,6 +323,16 @@ public class MySqlAntlrDdlParser extends AntlrDdlParser<MySqlLexer, MySqlParser>
             charsetName = systemVariables.getVariable(MySqlSystemVariables.CHARSET_NAME_SERVER);
         }
         return charsetName;
+    }
+
+    /**
+     * Get the name of the character set for the give table name.
+     *
+     * @return the name of the character set for the given table, or null if not known ...
+     */
+    public String charsetForTable(TableId tableId) {
+        final String defaultDatabaseCharset = tableId.catalog() != null ? charsetNameForDatabase().get(tableId.catalog()) : null;
+        return defaultDatabaseCharset != null ? defaultDatabaseCharset : currentDatabaseCharset();
     }
 
     /**

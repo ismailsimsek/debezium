@@ -53,6 +53,7 @@ import okhttp3.Response;
  */
 public class KafkaConnectController {
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConnectController.class);
+    private static final int METRICS_PORT = 9404;
 
     private final OpenShiftClient ocp;
     private final OkHttpClient http;
@@ -65,6 +66,7 @@ public class KafkaConnectController {
     private KafkaConnect kafkaConnect;
     private Route apiRoute;
     private Route metricsRoute;
+    private Service metricsService;
 
     public KafkaConnectController(KafkaConnect kafkaConnect, OpenShiftClient ocp, OkHttpClient http, boolean useConnectorResources) {
         this.kafkaConnect = kafkaConnect;
@@ -155,12 +157,16 @@ public class KafkaConnectController {
      */
     public Route exposeMetrics() {
         LOGGER.info("Exposing KafkaConnect metrics");
-        String name = kafkaConnect.getMetadata().getName() + "-connect-metrics";
-        String nameSvc = kafkaConnect.getMetadata().getName() + "-connect-api";
-        Service service = ocp.services().inNamespace(project).withName(nameSvc).get();
 
-        metricsRoute = ocpUtils
-                .createRoute(project, name, nameSvc, "tcp-prometheus", service.getMetadata().getLabels());
+        String namePort = "tcp-prometheus";
+        String name = kafkaConnect.getMetadata().getName() + "-connect-metrics";
+        String nameApiSvc = kafkaConnect.getMetadata().getName() + "-connect-api";
+        Service apiService = ocp.services().inNamespace(project).withName(nameApiSvc).get();
+        Map<String, String> selector = apiService.getSpec().getSelector();
+        Map<String, String> labels = apiService.getMetadata().getLabels();
+
+        metricsService = ocpUtils.createService(project, name, namePort, METRICS_PORT, selector, labels);
+        metricsRoute = ocpUtils.createRoute(project, name, name, namePort, labels);
         httpUtils.awaitApi(getMetricsURL());
 
         return metricsRoute;
@@ -271,6 +277,7 @@ public class KafkaConnectController {
     }
 
     public List<String> getConnectMetrics() throws IOException {
+        LOGGER.info("Retrieving connector metrics");
         OkHttpClient httpClient = new OkHttpClient();
         Request r = new Request.Builder().url(getMetricsURL()).get().build();
 
@@ -287,11 +294,11 @@ public class KafkaConnectController {
      * @throws IOException on metric request error
      */
     public void waitForSnapshot(String connectorName, String metricName) throws IOException {
-        List<String> metrics = getConnectMetrics();
+        LOGGER.info("Waiting for connector '" + connectorName + "' to finish snapshot");
         await()
                 .atMost(scaled(5), TimeUnit.MINUTES)
                 .pollInterval(10, TimeUnit.SECONDS)
-                .until(() -> metrics.stream().anyMatch(s -> s.contains(metricName) && s.contains(connectorName)));
+                .until(() -> getConnectMetrics().stream().anyMatch(s -> s.contains(metricName) && s.contains(connectorName)));
     }
 
     /**
@@ -300,7 +307,6 @@ public class KafkaConnectController {
      * @throws IOException on metric request error
      */
     public void waitForMySqlSnapshot(String connectorName) throws IOException {
-        LOGGER.info("Waiting for connector '" + connectorName + "' to finish snapshot");
         waitForSnapshot(connectorName, "debezium_mysql_connector_metrics_snapshotcompleted");
     }
 
@@ -329,6 +335,15 @@ public class KafkaConnectController {
      */
     public void waitForMongoSnapshot(String connectorName) throws IOException {
         waitForSnapshot(connectorName, "debezium_mongodb_connector_metrics_snapshotcompleted");
+    }
+
+    /**
+     * Waits until snapshot phase of given DB2 connector completes
+     * @param connectorName connector name
+     * @throws IOException on metric request error
+     */
+    public void waitForDB2Snapshot(String connectorName) throws IOException {
+        waitForSnapshot(connectorName, "debezium_db2_server_connector_metrics_snapshotcompleted");
     }
 
     /**

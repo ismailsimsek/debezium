@@ -11,14 +11,14 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-@Documented
-@Target({ ElementType.TYPE, ElementType.FIELD, ElementType.METHOD })
-@Retention(RetentionPolicy.SOURCE)
 /**
  * Indicates that visibility of the annotated element is raised for the purposes of testing
  * (e.g. package-visible instead of private).
  *
  * @author Gunnar Morling
  */
+@Documented
+@Target({ ElementType.TYPE, ElementType.FIELD, ElementType.METHOD })
+@Retention(RetentionPolicy.SOURCE)
 public @interface VisibleForTesting {
 }

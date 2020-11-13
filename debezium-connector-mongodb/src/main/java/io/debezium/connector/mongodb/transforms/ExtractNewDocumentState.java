@@ -41,7 +41,9 @@ import org.slf4j.LoggerFactory;
 import io.debezium.config.Configuration;
 import io.debezium.config.EnumeratedValue;
 import io.debezium.config.Field;
+import io.debezium.connector.mongodb.MongoDbFieldName;
 import io.debezium.data.Envelope;
+import io.debezium.data.Envelope.FieldName;
 import io.debezium.data.Envelope.Operation;
 import io.debezium.pipeline.txmetadata.TransactionMonitor;
 import io.debezium.schema.FieldNameSelector;
@@ -60,6 +62,8 @@ import io.debezium.util.Strings;
  * @author Renato mefi
  */
 public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Transformation<R> {
+
+    private String addFieldsPrefix;
 
     public enum ArrayEncoding implements EnumeratedValue {
         ARRAY("array"),
@@ -299,7 +303,7 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
             }
 
             if (addSourceFields != null) {
-                addSourceFieldsSchema(addSourceFields, record, valueSchemaBuilder);
+                addSourceFieldsSchema(addFieldsPrefix, addSourceFields, record, valueSchemaBuilder);
             }
 
             if (!additionalFields.isEmpty()) {
@@ -340,13 +344,13 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
         return newRecord;
     }
 
-    private void addSourceFieldsSchema(List<String> addSourceFields, R originalRecord, SchemaBuilder valueSchemaBuilder) {
+    private void addSourceFieldsSchema(String fieldPrefix, List<String> addSourceFields, R originalRecord, SchemaBuilder valueSchemaBuilder) {
         Schema sourceSchema = originalRecord.valueSchema().field("source").schema();
         for (String sourceField : addSourceFields) {
             if (sourceSchema.field(sourceField) == null) {
                 throw new ConfigException("Source field specified in 'add.source.fields' does not exist: " + sourceField);
             }
-            valueSchemaBuilder.field(ExtractNewRecordStateConfigDefinition.METADATA_FIELD_PREFIX + sourceField,
+            valueSchemaBuilder.field(fieldPrefix + sourceField,
                     sourceSchema.field(sourceField).schema());
         }
     }
@@ -481,14 +485,16 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
 
         converter = new MongoDataConverter(
                 ArrayEncoding.parse(config.getString(ARRAY_ENCODING)),
-                FieldNameSelector.defaultNonRelationalSelector(config.getBoolean(SANITIZE_FIELD_NAMES)));
+                FieldNameSelector.defaultNonRelationalSelector(config.getBoolean(SANITIZE_FIELD_NAMES)), config.getBoolean(SANITIZE_FIELD_NAMES));
 
         addOperationHeader = config.getBoolean(OPERATION_HEADER);
 
         addSourceFields = determineAdditionalSourceField(config.getString(ADD_SOURCE_FIELDS));
 
-        additionalHeaders = FieldReference.fromConfiguration(config.getString(ExtractNewRecordStateConfigDefinition.ADD_HEADERS));
-        additionalFields = FieldReference.fromConfiguration(config.getString(ExtractNewRecordStateConfigDefinition.ADD_FIELDS));
+        addFieldsPrefix = config.getString(ExtractNewRecordStateConfigDefinition.ADD_FIELDS_PREFIX);
+        String addHeadersPrefix = config.getString(ExtractNewRecordStateConfigDefinition.ADD_HEADERS_PREFIX);
+        additionalHeaders = FieldReference.fromConfiguration(addHeadersPrefix, config.getString(ExtractNewRecordStateConfigDefinition.ADD_HEADERS));
+        additionalFields = FieldReference.fromConfiguration(addFieldsPrefix, config.getString(ExtractNewRecordStateConfigDefinition.ADD_FIELDS));
 
         flattenStruct = config.getBoolean(FLATTEN_STRUCT);
         delimiter = config.getString(DELIMITER);
@@ -497,9 +503,9 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
         handleDeletes = DeleteHandling.parse(config.getString(ExtractNewRecordStateConfigDefinition.HANDLE_DELETES));
 
         final Map<String, String> afterExtractorConfig = new HashMap<>();
-        afterExtractorConfig.put("field", "after");
+        afterExtractorConfig.put("field", FieldName.AFTER);
         final Map<String, String> patchExtractorConfig = new HashMap<>();
-        patchExtractorConfig.put("field", "patch");
+        patchExtractorConfig.put("field", MongoDbFieldName.PATCH);
         final Map<String, String> keyExtractorConfig = new HashMap<>();
         keyExtractorConfig.put("field", "id");
 
@@ -539,13 +545,13 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
          */
         private final String newFieldName;
 
-        private FieldReference(String field) {
+        private FieldReference(String prefix, String field) {
             String[] parts = FIELD_SEPARATOR.split(field);
 
             if (parts.length == 1) {
                 this.struct = determineStruct(parts[0]);
                 this.field = parts[0];
-                this.newFieldName = ExtractNewRecordStateConfigDefinition.METADATA_FIELD_PREFIX + field;
+                this.newFieldName = prefix + field;
             }
             else if (parts.length == 2) {
                 this.struct = parts[0];
@@ -555,7 +561,7 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
                 }
 
                 this.field = parts[1];
-                this.newFieldName = ExtractNewRecordStateConfigDefinition.METADATA_FIELD_PREFIX + this.struct + "_" + this.field;
+                this.newFieldName = prefix + this.struct + "_" + this.field;
             }
             else {
                 throw new IllegalArgumentException("Unexpected field value: " + field);
@@ -566,7 +572,9 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
          * Determine the struct hosting the given unqualified field.
          */
         private static String determineStruct(String simpleFieldName) {
-            if (simpleFieldName.equals(Envelope.FieldName.OPERATION) || simpleFieldName.equals(Envelope.FieldName.TIMESTAMP)) {
+            if (simpleFieldName.equals(Envelope.FieldName.OPERATION) ||
+                    simpleFieldName.equals(Envelope.FieldName.TIMESTAMP) ||
+                    simpleFieldName.equals(MongoDbFieldName.PATCH)) {
                 return null;
             }
             else if (simpleFieldName.equals(TransactionMonitor.DEBEZIUM_TRANSACTION_ID_KEY) ||
@@ -579,14 +587,14 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> implements Tran
             }
         }
 
-        static List<FieldReference> fromConfiguration(String addHeadersConfig) {
+        static List<FieldReference> fromConfiguration(String fieldPrefix, String addHeadersConfig) {
             if (Strings.isNullOrEmpty(addHeadersConfig)) {
                 return Collections.emptyList();
             }
             else {
                 return Arrays.stream(addHeadersConfig.split(","))
                         .map(String::trim)
-                        .map(FieldReference::new)
+                        .map(field -> new FieldReference(fieldPrefix, field))
                         .collect(Collectors.toList());
             }
         }

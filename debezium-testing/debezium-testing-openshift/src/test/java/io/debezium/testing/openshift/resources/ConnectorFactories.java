@@ -29,7 +29,6 @@ public class ConnectorFactories {
                 .put("database.user", ConfigProperties.DATABASE_MYSQL_DBZ_USERNAME)
                 .put("database.password", ConfigProperties.DATABASE_MYSQL_DBZ_PASSWORD)
                 .put("database.server.name", "mysqldb") // this should be overwritten with unique name
-                .put("database.include.list", "inventory") // might want to change
                 .put("database.history.kafka.bootstrap.servers", "debezium-kafka-cluster-kafka-bootstrap." + ConfigProperties.OCP_PROJECT_DBZ + ".svc.cluster.local:9092")
                 .put("database.history.kafka.topic", "schema-changes.inventory");
     }
@@ -46,7 +45,6 @@ public class ConnectorFactories {
                 .put("database.password", ConfigProperties.DATABASE_POSTGRESQL_DBZ_PASSWORD)
                 .put("database.dbname", ConfigProperties.DATABASE_POSTGRESQL_DBZ_DBNAME)
                 .put("database.server.name", "postgresqldb") // this should be overwritten with unique name
-                .put("schema.include.list", "inventory") // might want to change
                 .put("slot.name", "debezium")
                 .put("plugin.name", "pgoutput");
     }
@@ -76,7 +74,23 @@ public class ConnectorFactories {
                 .put("mongodb.hosts", "rs0/" + dbHost + ":" + ConfigProperties.DATABASE_MONGO_PORT)
                 .put("mongodb.user", ConfigProperties.DATABASE_MONGO_DBZ_USERNAME)
                 .put("mongodb.password", ConfigProperties.DATABASE_MONGO_DBZ_PASSWORD)
-                .put("mongodb.name", "mongodb") // this should be overwritten with unique name
-                .put("database.include.list", ConfigProperties.DATABASE_MONGO_DBZ_DBNAME); // might want to change
+                .put("mongodb.name", "mongodb"); // this should be overwritten with unique name
+    }
+
+    public ConnectorConfigBuilder db2() {
+        ConnectorConfigBuilder cb = new ConnectorConfigBuilder();
+        String dbHost = DATABASE_POSTGRESQL_HOST.orElse("db2." + ConfigProperties.OCP_PROJECT_DB2 + ".svc.cluster.local");
+        return cb
+                .put("connector.class", "io.debezium.connector.db2.Db2Connector")
+                .put("task.max", 1)
+                .put("database.hostname", dbHost)
+                .put("database.port", ConfigProperties.DATABASE_DB2_PORT)
+                .put("database.user", ConfigProperties.DATABASE_DB2_DBZ_USERNAME)
+                .put("database.password", ConfigProperties.DATABASE_DB2_DBZ_PASSWORD)
+                .put("database.dbname", ConfigProperties.DATABASE_DB2_DBZ_DBNAME)
+                .put("database.cdcschema", "ASNCDC")
+                .put("database.server.name", "db2db") // this should be overwritten with unique name
+                .put("database.history.kafka.bootstrap.servers", "debezium-kafka-cluster-kafka-bootstrap." + ConfigProperties.OCP_PROJECT_DBZ + ".svc.cluster.local:9092")
+                .put("database.history.kafka.topic", "schema-changes.inventory");
     }
 }

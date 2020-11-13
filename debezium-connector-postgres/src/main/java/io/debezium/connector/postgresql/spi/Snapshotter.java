@@ -45,6 +45,16 @@ public interface Snapshotter {
     boolean shouldStream();
 
     /**
+     *
+     * @return true if streaming should resume from the start of the snapshot
+     * transaction, or false for when a connector resumes and takes a snapshot,
+     * streaming should resume from where streaming previously left off.
+     */
+    default boolean shouldStreamEventsStartingFromSnapshot() {
+        return true;
+    }
+
+    /**
      * @return true if when creating a slot, a snapshot should be exported, which
      * can be used as an alternative to taking a lock
      */
@@ -88,5 +98,12 @@ public interface Snapshotter {
                 .append(" IN ACCESS SHARE MODE;")
                 .append(lineSeparator));
         return Optional.of(statements.toString());
+    }
+
+    /**
+     * Lifecycle hook called once the snapshot phase is finished.
+     */
+    default void snapshotCompleted() {
+        // no operation
     }
 }

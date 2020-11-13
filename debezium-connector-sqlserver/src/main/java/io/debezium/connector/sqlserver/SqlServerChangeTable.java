@@ -5,6 +5,10 @@
  */
 package io.debezium.connector.sqlserver;
 
+import java.util.Collections;
+import java.util.List;
+
+import io.debezium.annotation.Immutable;
 import io.debezium.relational.ChangeTable;
 import io.debezium.relational.TableId;
 
@@ -30,14 +34,22 @@ public class SqlServerChangeTable extends ChangeTable {
      */
     private Lsn stopLsn;
 
-    public SqlServerChangeTable(TableId sourceTableId, String captureInstance, int changeTableObjectId, Lsn startLsn, Lsn stopLsn) {
+    /**
+     * List of columns captured by the CDC table.
+     */
+    @Immutable
+    private final List<String> capturedColumns;
+
+    public SqlServerChangeTable(TableId sourceTableId, String captureInstance, int changeTableObjectId, Lsn startLsn, Lsn stopLsn,
+                                List<String> capturedColumns) {
         super(captureInstance, sourceTableId, resolveChangeTableId(sourceTableId, captureInstance), changeTableObjectId);
         this.startLsn = startLsn;
         this.stopLsn = stopLsn;
+        this.capturedColumns = capturedColumns != null ? Collections.unmodifiableList(capturedColumns) : Collections.emptyList();
     }
 
     public SqlServerChangeTable(String captureInstance, int changeTableObjectId, Lsn startLsn, Lsn stopLsn) {
-        this(null, captureInstance, changeTableObjectId, startLsn, stopLsn);
+        this(null, captureInstance, changeTableObjectId, startLsn, stopLsn, null);
     }
 
     public Lsn getStartLsn() {
@@ -50,6 +62,10 @@ public class SqlServerChangeTable extends ChangeTable {
 
     public void setStopLsn(Lsn stopLsn) {
         this.stopLsn = stopLsn;
+    }
+
+    public List<String> getCapturedColumns() {
+        return capturedColumns;
     }
 
     @Override

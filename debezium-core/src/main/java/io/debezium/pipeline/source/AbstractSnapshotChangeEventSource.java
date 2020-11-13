@@ -6,6 +6,9 @@
 package io.debezium.pipeline.source;
 
 import java.time.Duration;
+import java.util.Collection;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +19,7 @@ import io.debezium.pipeline.source.spi.SnapshotChangeEventSource;
 import io.debezium.pipeline.source.spi.SnapshotProgressListener;
 import io.debezium.pipeline.spi.OffsetContext;
 import io.debezium.pipeline.spi.SnapshotResult;
+import io.debezium.schema.DataCollectionId;
 import io.debezium.util.Clock;
 import io.debezium.util.Metronome;
 import io.debezium.util.Threads;
@@ -31,7 +35,7 @@ public abstract class AbstractSnapshotChangeEventSource implements SnapshotChang
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractSnapshotChangeEventSource.class);
 
     private final CommonConnectorConfig connectorConfig;
-    private final OffsetContext previousOffset;
+    protected final OffsetContext previousOffset;
     private final SnapshotProgressListener snapshotProgressListener;
 
     public AbstractSnapshotChangeEventSource(CommonConnectorConfig connectorConfig, OffsetContext previousOffset, SnapshotProgressListener snapshotProgressListener) {
@@ -78,6 +82,17 @@ public abstract class AbstractSnapshotChangeEventSource implements SnapshotChang
         finally {
             LOGGER.info("Snapshot - Final stage");
             complete(ctx);
+        }
+    }
+
+    protected <T extends DataCollectionId> Stream<T> determineDataCollectionsToBeSnapshotted(final Collection<T> allDataCollections) {
+        final Set<String> snapshotAllowedDataCollections = connectorConfig.getDataCollectionsToBeSnapshotted();
+        if (snapshotAllowedDataCollections.size() == 0) {
+            return allDataCollections.stream();
+        }
+        else {
+            return allDataCollections.stream()
+                    .filter(dataCollectionId -> snapshotAllowedDataCollections.stream().anyMatch(s -> dataCollectionId.identifier().matches(s)));
         }
     }
 

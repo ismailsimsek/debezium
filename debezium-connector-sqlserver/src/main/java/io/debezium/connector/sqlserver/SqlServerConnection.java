@@ -14,11 +14,14 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -26,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import com.microsoft.sqlserver.jdbc.SQLServerDriver;
 
+import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.jdbc.JdbcConfiguration;
 import io.debezium.jdbc.JdbcConnection;
@@ -45,13 +49,17 @@ import io.debezium.util.Clock;
 public class SqlServerConnection extends JdbcConnection {
 
     public static final String SERVER_TIMEZONE_PROP_NAME = "server.timezone";
+    public static final String INSTANCE_NAME = "instance";
 
     private static final String GET_DATABASE_NAME = "SELECT db_name()";
 
-    private static Logger LOGGER = LoggerFactory.getLogger(SqlServerConnection.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(SqlServerConnection.class);
 
     private static final String STATEMENTS_PLACEHOLDER = "#";
     private static final String GET_MAX_LSN = "SELECT sys.fn_cdc_get_max_lsn()";
+
+    private static final String GET_MAX_LSN_SKIP_LOW_ACTIVTY = "SELECT (SELECT MAX(start_lsn) FROM cdc.lsn_time_mapping), (SELECT MAX(start_lsn) FROM cdc.lsn_time_mapping WHERE tran_id <> 0x00)";
+
     private static final String GET_MIN_LSN = "SELECT sys.fn_cdc_get_min_lsn('#')";
     private static final String LOCK_TABLE = "SELECT * FROM [#] WITH (TABLOCKX)";
     private static final String SQL_SERVER_VERSION = "SELECT @@VERSION AS 'SQL Server Version'";
@@ -61,6 +69,7 @@ public class SqlServerConnection extends JdbcConnection {
     private static final String GET_LIST_OF_CDC_ENABLED_TABLES = "EXEC sys.sp_cdc_help_change_data_capture";
     private static final String GET_LIST_OF_NEW_CDC_ENABLED_TABLES = "SELECT * FROM cdc.change_tables WHERE start_lsn BETWEEN ? AND ?";
     private static final String GET_LIST_OF_KEY_COLUMNS = "SELECT * FROM cdc.index_columns WHERE object_id=?";
+    private static final Pattern BRACKET_PATTERN = Pattern.compile("[\\[\\]]");
 
     private static final int CHANGE_TABLE_DATA_COLUMN_OFFSET = 5;
 
@@ -78,6 +87,7 @@ public class SqlServerConnection extends JdbcConnection {
     private final ZoneId transactionTimezone;
     private final SourceTimestampMode sourceTimestampMode;
     private final Clock clock;
+    private final int queryFetchSize;
 
     private final BoundedConcurrentHashMap<Lsn, Instant> lsnToInstantCache;
     private final SqlServerDefaultValueConverter defaultValueConverter;
@@ -86,14 +96,26 @@ public class SqlServerConnection extends JdbcConnection {
      * Creates a new connection using the supplied configuration.
      *
      * @param config {@link Configuration} instance, may not be null.
+     * @param clock the clock
      * @param sourceTimestampMode strategy for populating {@code source.ts_ms}.
-     * @param config
-     *            {@link Configuration} instance, may not be null.
-     * @param valueConverters
-     *            {@link SqlServerValueConverters} instance
+     * @param valueConverters {@link SqlServerValueConverters} instance
      */
     public SqlServerConnection(Configuration config, Clock clock, SourceTimestampMode sourceTimestampMode, SqlServerValueConverters valueConverters) {
-        super(config, FACTORY);
+        this(config, clock, sourceTimestampMode, valueConverters, null);
+    }
+
+    /**
+     * Creates a new connection using the supplied configuration.
+     *
+     * @param config {@link Configuration} instance, may not be null.
+     * @param clock the clock
+     * @param sourceTimestampMode strategy for populating {@code source.ts_ms}.
+     * @param valueConverters {@link SqlServerValueConverters} instance
+     * @param classLoaderSupplier class loader supplier
+     */
+    public SqlServerConnection(Configuration config, Clock clock, SourceTimestampMode sourceTimestampMode, SqlServerValueConverters valueConverters,
+                               Supplier<ClassLoader> classLoaderSupplier) {
+        super(config, FACTORY, classLoaderSupplier);
         lsnToInstantCache = new BoundedConcurrentHashMap<>(100);
         realDatabaseName = retrieveRealDatabaseName();
         boolean supportsAtTimeZone = supportsAtTimeZone();
@@ -102,6 +124,7 @@ public class SqlServerConnection extends JdbcConnection {
         this.clock = clock;
         this.sourceTimestampMode = sourceTimestampMode;
         defaultValueConverter = new SqlServerDefaultValueConverter(this::connection, valueConverters);
+        this.queryFetchSize = config().getInteger(CommonConnectorConfig.QUERY_FETCH_SIZE);
     }
 
     /**
@@ -131,6 +154,24 @@ public class SqlServerConnection extends JdbcConnection {
             LOGGER.trace("Current maximum lsn is {}", ret);
             return ret;
         }, "Maximum LSN query must return exactly one value"));
+    }
+
+    public MaxLsnResult getMaxLsnResult(boolean skipLowActivityLsnsEnabled) throws SQLException {
+        if (skipLowActivityLsnsEnabled) {
+            return prepareQueryAndMap(GET_MAX_LSN_SKIP_LOW_ACTIVTY, statement -> {
+            }, singleResultMapper(rs -> {
+                final MaxLsnResult ret = new MaxLsnResult(Lsn.valueOf(rs.getBytes(1)), Lsn.valueOf(rs.getBytes(2)));
+                LOGGER.trace("Current maximum transactional LSN is {}", ret);
+                return ret;
+            }, "Maximum transactional LSN query must return exactly one value"));
+        }
+        Lsn maxLsn = prepareQueryAndMap(GET_MAX_LSN, statement -> {
+        }, singleResultMapper(rs -> {
+            final Lsn ret = Lsn.valueOf(rs.getBytes(1));
+            LOGGER.trace("Current maximum LSN is {}", ret);
+            return ret;
+        }, "Maximum LSN query must return exactly one value"));
+        return new MaxLsnResult(maxLsn, maxLsn);
     }
 
     /**
@@ -185,6 +226,9 @@ public class SqlServerConnection extends JdbcConnection {
             final Lsn fromLsn = getFromLsn(changeTable, intervalFromLsn);
             LOGGER.trace("Getting changes for table {} in range[{}, {}]", changeTable, fromLsn, intervalToLsn);
             preparers[idx] = statement -> {
+                if (queryFetchSize > 0) {
+                    statement.setFetchSize(queryFetchSize);
+                }
                 statement.setBytes(1, fromLsn.getBinary());
                 statement.setBytes(2, intervalToLsn.getBinary());
             };
@@ -318,7 +362,9 @@ public class SqlServerConnection extends JdbcConnection {
                                 rs.getString(3),
                                 rs.getInt(4),
                                 Lsn.valueOf(rs.getBytes(6)),
-                                Lsn.valueOf(rs.getBytes(7))));
+                                Lsn.valueOf(rs.getBytes(7)),
+                                Arrays.asList(BRACKET_PATTERN.matcher(Optional.ofNullable(rs.getString(15)).orElse(""))
+                                        .replaceAll("").split(", "))));
             }
             return changeTables;
         });
@@ -355,7 +401,12 @@ public class SqlServerConnection extends JdbcConnection {
                 changeTable.getSourceTableId().table(),
                 null)) {
             while (rs.next()) {
-                readTableColumn(rs, changeTable.getSourceTableId(), null).ifPresent(ce -> columns.add(ce.create()));
+                readTableColumn(rs, changeTable.getSourceTableId(), null).ifPresent(ce -> {
+                    // Filter out columns not included in the change table.
+                    if (changeTable.getCapturedColumns().contains(ce.name())) {
+                        columns.add(ce.create());
+                    }
+                });
             }
         }
 
@@ -396,12 +447,6 @@ public class SqlServerConnection extends JdbcConnection {
                 .addColumns(columns)
                 .setPrimaryKeyNames(pkColumnNames)
                 .create();
-    }
-
-    public synchronized void rollback() throws SQLException {
-        if (isConnected()) {
-            connection().rollback();
-        }
     }
 
     public String getNameOfChangeTable(String captureName) {

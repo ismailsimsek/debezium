@@ -174,7 +174,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
      */
     public static final Field TABLE_EXCLUDE_LIST = Field.create(TABLE_EXCLUDE_LIST_NAME)
             .withDisplayName("Exclude Tables")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
             .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateTableExcludeList)
@@ -187,7 +187,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
     @Deprecated
     public static final Field TABLE_BLACKLIST = Field.create(TABLE_BLACKLIST_NAME)
             .withDisplayName("Deprecated: Exclude Tables")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.LOW)
             .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateTableExcludeList)
@@ -213,10 +213,10 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
      */
     public static final Field COLUMN_EXCLUDE_LIST = Field.create("column.exclude.list")
             .withDisplayName("Exclude Columns")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
-            .withValidation(RelationalDatabaseConnectorConfig::validateColumnExcludeList)
+            .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateColumnExcludeList)
             .withDescription("Regular expressions matching columns to exclude from change events");
 
     /**
@@ -225,10 +225,10 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
     @Deprecated
     public static final Field COLUMN_BLACKLIST = Field.create("column.blacklist")
             .withDisplayName("Deprecated: Exclude Columns")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.LOW)
-            .withValidation(RelationalDatabaseConnectorConfig::validateColumnExcludeList)
+            .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateColumnExcludeList)
             .withInvisibleRecommender()
             .withDescription("Regular expressions matching columns to exclude from change events (deprecated, use \"" + COLUMN_EXCLUDE_LIST.name() + "\" instead)");
 
@@ -240,9 +240,10 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
      */
     public static final Field COLUMN_INCLUDE_LIST = Field.create("column.include.list")
             .withDisplayName("Include Columns")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
+            .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateColumnExcludeList)
             .withDescription("Regular expressions matching columns to include in change events");
 
     /**
@@ -251,9 +252,10 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
     @Deprecated
     public static final Field COLUMN_WHITELIST = Field.create("column.whitelist")
             .withDisplayName("Deprecated: Include Columns")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.LOW)
+            .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateColumnExcludeList)
             .withInvisibleRecommender()
             .withDescription("Regular expressions matching columns to include in change events (deprecated, use \"" + COLUMN_INCLUDE_LIST.name() + "\" instead)");
 
@@ -303,7 +305,8 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.HIGH)
-            .withDependents(TABLE_INCLUDE_LIST_NAME, TABLE_WHITELIST_NAME)
+            .withValidation(Field::isListOfRegex)
+            .withDependents(TABLE_INCLUDE_LIST_NAME)
             .withDescription("The schemas for which events should be captured");
 
     /**
@@ -315,7 +318,8 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.LOW)
-            .withDependents(TABLE_INCLUDE_LIST_NAME, TABLE_WHITELIST_NAME)
+            .withValidation(Field::isListOfRegex)
+            .withDependents(TABLE_INCLUDE_LIST_NAME)
             .withInvisibleRecommender()
             .withDescription("The schemas for which events should be captured (deprecated, use \"" + SCHEMA_INCLUDE_LIST.name() + "\" instead)");
 
@@ -325,10 +329,10 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
      */
     public static final Field SCHEMA_EXCLUDE_LIST = Field.create(SCHEMA_EXCLUDE_LIST_NAME)
             .withDisplayName("Exclude Schemas")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
-            .withValidation(RelationalDatabaseConnectorConfig::validateSchemaExcludeList)
+            .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateSchemaExcludeList)
             .withInvisibleRecommender()
             .withDescription("The schemas for which events must not be captured");
 
@@ -338,10 +342,10 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
     @Deprecated
     public static final Field SCHEMA_BLACKLIST = Field.create("schema.blacklist")
             .withDisplayName("Deprecated: Exclude Schemas")
-            .withType(Type.STRING)
+            .withType(Type.LIST)
             .withWidth(Width.LONG)
             .withImportance(Importance.LOW)
-            .withValidation(RelationalDatabaseConnectorConfig::validateSchemaExcludeList)
+            .withValidation(Field::isListOfRegex, RelationalDatabaseConnectorConfig::validateSchemaExcludeList)
             .withInvisibleRecommender()
             .withDescription("The schemas for which events must not be captured (deprecated, use \"" + SCHEMA_EXCLUDE_LIST.name() + "\" instead)");
 
@@ -379,6 +383,7 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
             .withDefault(true);
 
     public static final Field MASK_COLUMN_WITH_HASH = Field.create("column.mask.hash.([^.]+).with.salt.(.+)")
+            .withDisplayName("Mask Columns Using Hash and Salt")
             .withType(Type.STRING)
             .withWidth(Width.LONG)
             .withImportance(Importance.MEDIUM)
@@ -386,14 +391,30 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     + "be masked by hashing the input. Using the specified hash algorithms and salt.");
 
     public static final Field MASK_COLUMN = Field.create("column.mask.with.(d+).chars")
+            .withDisplayName("Mask Columns With n Asterisks")
             .withValidation(Field::isInteger)
             .withDescription("A comma-separated list of regular expressions matching fully-qualified names of columns that should "
                     + "be masked with configured amount of asterisk ('*') characters.");
 
     public static final Field TRUNCATE_COLUMN = Field.create("column.truncate.to.(d+).chars")
+            .withDisplayName("Truncate Columns To n Characters")
             .withValidation(Field::isInteger)
             .withDescription("A comma-separated list of regular expressions matching fully-qualified names of columns that should "
                     + "be truncated to the configured amount of characters.");
+
+    public static final Field PROPAGATE_COLUMN_SOURCE_TYPE = Field.create("column.propagate.source.type")
+            .withDisplayName("Propagate Source Types by Columns")
+            .withType(Type.LIST)
+            .withValidation(Field::isListOfRegex)
+            .withDescription("A comma-separated list of regular expressions matching fully-qualified names of columns that "
+                    + " adds the column’s original type and original length as parameters to the corresponding field schemas in the emitted change records.");
+
+    public static final Field PROPAGATE_DATATYPE_SOURCE_TYPE = Field.create("datatype.propagate.source.type")
+            .withDisplayName("Propagate Source Types by Data Type")
+            .withType(Type.LIST)
+            .withValidation(Field::isListOfRegex)
+            .withDescription("A comma-separated list of regular expressions matching the database-specific data type names that "
+                    + "adds the data type's original type and original length as parameters to the corresponding field schemas in the emitted change records.");
 
     protected static final ConfigDefinition CONFIG_DEFINITION = CommonConnectorConfig.CONFIG_DEFINITION.edit()
             .type(
@@ -421,7 +442,9 @@ public abstract class RelationalDatabaseConnectorConfig extends CommonConnectorC
                     MASK_COLUMN_WITH_HASH,
                     MASK_COLUMN,
                     TRUNCATE_COLUMN,
-                    INCLUDE_SCHEMA_CHANGES)
+                    INCLUDE_SCHEMA_CHANGES,
+                    PROPAGATE_COLUMN_SOURCE_TYPE,
+                    PROPAGATE_DATATYPE_SOURCE_TYPE)
             .create();
 
     private final RelationalTableFilters tableFilters;

@@ -1,6 +1,7 @@
 [id="debezium-connector-for-oracle"]
 = {prodname} Connector for Oracle
 
+:context: oracle
 :toc:
 :toc-placement: macro
 :linkattrs:
@@ -22,11 +23,9 @@ It is supported though to capture tables newly added while the connector is runn
 [[oracle-overview]]
 == Overview
 
-{prodname} ingests change events from Oracle using the https://docs.oracle.com/database/121/XSTRM/xstrm_intro.htm#XSTRM72647[XStream API].
-In order to use this API and hence this connector, you need to have a license for the GoldenGate product
+{prodname} ingests change events from Oracle using the https://docs.oracle.com/database/121/XSTRM/xstrm_intro.htm#XSTRM72647[XStream API] or directly by LogMiner.
+In order to use the XStream API, you need to have a license for the GoldenGate product
 (though it is not required that GoldenGate itself is installed).
-We are currently exploring alternatives to using XStream for a future {prodname} release, e.g. based on LogMiner and/or alternative solutions.
-Please track the {jira-url}/browse/DBZ-137[DBZ-137] JIRA issue and join the discussion if you are aware of potential other ways for ingesting change events from Oracle.
 
 [[setting-up-oracle]]
 == Setting up Oracle
@@ -38,6 +37,8 @@ if you're not using this model, adjust the steps accordingly.
 You can find a template for setting up Oracle in a virtual machine (via Vagrant) in the https://github.com/debezium/oracle-vagrant-box/[oracle-vagrant-box/] repository.
 
 === Preparing the Database
+
+==== XStream
 
 Enable GoldenGate replication and archive log mode:
 
@@ -67,7 +68,45 @@ E.g. like so for a specific table:
 ALTER TABLE inventory.customers ADD SUPPLEMENTAL LOG DATA (ALL) COLUMNS;
 ----
 
-=== Creating an XStream Admin User and a User For the Connector
+==== LogMiner
+
+[NOTE]
+====
+The LogMiner implementation requires the database to be configured with a minimum number of redo log groups and files per group.
+It's recommended to have a minimum of `5` redo log groups each with `2` redo files per group.
+Please refer to the Oracle documentation on how to manipulate redo log groups and files for your database version.
+====
+
+Enable archive log mode:
+
+[source,indent=0]
+----
+ORACLE_SID=ORACLCDB dbz_oracle sqlplus /nolog
+
+CONNECT sys/top_secret AS SYSDBA
+alter system set db_recovery_file_dest_size = 10G;
+alter system set db_recovery_file_dest = '/opt/oracle/oradta/recovery_area' scope=spfile;
+shutdown immediate
+startup mount
+alter database archivelog;
+alter database open;
+-- Should now "Database log mode: Archive Mode"
+archive log list
+
+exit;
+----
+
+Furthermore, in order to capture the _before_ state of changed rows, supplemental logging must be enabled for the captured tables or the database in general.
+E.g. like so for a specific table:
+
+[source,indent=0]
+----
+ALTER TABLE inventory.customers ADD SUPPLEMENTAL LOG DATA (ALL) COLUMNS;
+----
+
+=== Creating Users for the connector
+
+==== XStream
 
 Create an XStream admin user in the container database (used per Oracle's recommendation for administering XStream):
 
@@ -146,7 +185,53 @@ GRANT FLASHBACK ANY TABLE TO c##xstrm CONTAINER=ALL;
 exit;
 ----
 
+==== LogMiner
+
+Create LogMiner user (used by the {prodname} connector to connect to Oracle):
+
+[source,indent=0]
+----
+sqlplus sys/top_secret@//localhost:1521/ORCLCDB as sysdba
+CREATE TABLESPACE logminer_tbs DATAFILE '/opt/oracle/oradata/ORCLCDB/logminer_tbs.dbf'
+  SIZE 25M REUSE AUTOEXTEND ON MAXSIZE UNLIMITED;
+exit;
+----
+
+[source,indent=0]
+----
+sqlplus sys/top_secret@//localhost:1521/ORCLPDB1 as sysdba
+CREATE TABLESPACE logminer_tbs DATAFILE '/opt/oracle/oradata/ORCLCDB/ORCLPDB1/logminer_tbs.dbf'
+  SIZE 25M REUSE AUTOEXTEND ON MAXSIZE UNLIMITED;
+exit;
+----
+
+[source,indent=0]
+----
+sqlplus sys/top_secret@//localhost:1521/ORCLCDB as sysdba
+
+CREATE USER c##logminer IDENTIFIED BY lm
+  DEFAULT TABLESPACE logminer_tbs
+  QUOTA UNLIMITED ON logminer_tbs
+  CONTAINER=ALL;
+
+GRANT CREATE SESSION TO c##logminer CONTAINER=ALL;
+GRANT SET CONTAINER TO c##logminer CONTAINER=ALL;
+GRANT SELECT ON V_$DATABASE to c##logminer CONTAINER=ALL;
+GRANT FLASHBACK ANY TABLE TO c##logminer CONTAINER=ALL;
+GRANT LOGMINING TO c##logminer CONTAINER=ALL;
+GRANT LOCK ANY TABLE TO c##logminer CONTAINER=ALL;
+GRANT CREATE TABLE TO c##logminer CONTAINER=ALL;
+GRANT SELECT ON V_$LOG TO c##logminer CONTAINER=ALL;
+
+exit;
+----
+
 === Create an XStream Outbound Server
+
+[NOTE]
+====
+If you're using the LogMiner implementation, this step is not necessary.
+====
 
 Create an https://docs.oracle.com/cd/E11882_01/server.112/e16545/xstrm_cncpt.htm#XSTRM1088[XStream Outbound server]
 (given the right privileges, this may be done automatically by the connector going forward, see {jira-url}/browse/DBZ-721[DBZ-721]):
@@ -282,6 +367,7 @@ The example of the message is:
       "table": "CUSTOMERS",
       "txId" : null,
       "scn" : "1513734",
+      "commit_scn": "1513734",
       "lcr_position" : null
     },
     "databaseName": "ORCLPDB1",
@@ -464,7 +550,7 @@ Therefore, you can interpret this key as describing the row in the `inventory.cu
 ////
 [NOTE]
 ====
-Although the `column.blacklist` configuration property allows you to remove columns from the event values, all columns in a primary or unique key are always included in the event's key.
+Although the `column.exclude.list` configuration property allows you to remove columns from the event values, all columns in a primary or unique key are always included in the event's key.
 ====
 
 [WARNING]
@@ -488,7 +574,14 @@ Whether or not this field and its elements are available is highly dependent on 
 ====
 
 * `after` is an optional field that if present contains the state of the row _after_ the event occurred. The structure is described by the same `server1.INVENTORY.CUSTOMERS.Value` Kafka Connect schema used in `before`.
-* `source` is a mandatory field that contains a structure describing the source metadata for the event, which in the case of Oracle contains these fields: the {prodname} version, the connector name, whether the event is part of an ongoing snapshot or not, the transaction id (not while snapshotting), the SCN of the change, and a timestamp representing the point in time when the record was changed in the source database (during snapshotting, this is the point in time of snapshotting)
+* `source` is a mandatory field that contains a structure describing the source metadata for the event, which in the case of Oracle contains these fields: the {prodname} version, the connector name, whether the event is part of an ongoing snapshot or not, the transaction id (not while snapshotting), the SCN of the change, and a timestamp representing the point in time when the record was changed in the source database (during snapshotting, this is the point in time of snapshotting).
+
+[TIP]
+====
+The `commit_scn` field is optional and describes the SCN of the transaction commit that the change event participates within.
+This field is only present when using the LogMiner connection adapter.
+====
+
 * `ts_ms` is optional and if present contains the time (using the system clock in the JVM running the Kafka Connect task) at which the connector processed the event.
 
 And of course, the _schema_ portion of the event message's value contains a schema that describes this envelope structure and the nested fields within it.
@@ -589,6 +682,11 @@ Let's look at what a _create_ event value might look like for our `customers` ta
                         "field": "scn"
                     },
                     {
+                        "type": "int64",
+                        "optional": true,
+                        "field": "commit_scn"
+                    },
+                    {
                         "type": "boolean",
                         "optional": true,
                         "field": "snapshot"
@@ -626,6 +724,7 @@ Let's look at what a _create_ event value might look like for our `customers` ta
             "ts_ms": 1520085154000,
             "txId": "6.28.807",
             "scn": 2122185,
+            "commit_scn": 2122185,
             "snapshot": false
         },
         "op": "c",
@@ -679,6 +778,7 @@ Here's an example:
             "ts_ms": 1520085811000,
             "txId": "6.9.809",
             "scn": 2125544,
+            "commit_scn": 2125544,
             "snapshot": false
         },
         "op": "u",
@@ -727,6 +827,7 @@ Now, let's look at the value of a _delete_ event for the same table. Once again,
             "ts_ms": 1520085153000,
             "txId": "6.28.807",
             "scn": 2122184,
+            "commit_scn": 2122184,
             "snapshot": false
         },
         "op": "d",
@@ -1045,6 +1146,40 @@ The following shows an example JSON request for registering an instance of the {
 }
 ----
 
+[[selecting-the-adapter]]
+== Selecting the adapter
+
+{prodname} provides multiple ways to ingest change events from Oracle.
+By default {prodname} uses the XStream API but this isn't always applicable for every installation.
+
+The following example configuration illustrates that by adding the `database.connection.adapter`, the connector can be toggled to use the LogMiner implementation.
+
+[source,json,indent=0]
+----
+{
+    "name": "inventory-connector",
+    "config": {
+        "connector.class" : "io.debezium.connector.oracle.OracleConnector",
+        "tasks.max" : "1",
+        "database.server.name" : "server1",
+        "database.hostname" : "<oracle ip>",
+        "database.port" : "1521",
+        "database.user" : "c##xstrm",
+        "database.password" : "xs",
+        "database.dbname" : "ORCLCDB",
+        "database.pdb.name" : "ORCLPDB1",
+        "database.out.server.name" : "dbzxout",
+        "database.history.kafka.bootstrap.servers" : "kafka:9092",
+        "database.history.kafka.topic": "schema-changes.inventory"
+        "database.connection.adapter": "logminer"
+    }
+}
+----
+
+[NOTE]
+====
+We do encourage the use of the LogMiner implementation for testing purposes and providing us with your feedback, but we do not yet recommend its use in production as its still under active development.
+====
 
 [[oracle-monitoring]]
 === Monitoring
@@ -1072,6 +1207,69 @@ include::{partialsdir}/modules/all-connectors/ref-connector-monitoring-snapshot-
 The *MBean* is `debezium.oracle:type=connector-metrics,context=streaming,server=_<database.server.name>_`.
 
 include::{partialsdir}/modules/all-connectors/ref-connector-monitoring-streaming-metrics.adoc[leveloffset=+1]
+
+[[oracle-monitoring-streaming-logminer]]
+==== LogMiner Metrics
+
+The *MBean* is `debezium.oracle:type=connector-metrics,context=log-miner,server=_<database.server.name>_`.
+
+[cols="45%a,25%a,30%a"]
+|===
+|Attributes |Type |Description
+
+|[[log-miner-metrics-currentscn]]<<log-miner-metrics-currentscn, `CurrentScn`>>
+|`long`
+|The most recent SCN has has been processed.
+
+|[[log-miner-metrics-captureddmlcount]]<<log-miner-metrics-captureddmlcount, `CapturedDmlCount`>>
+|`int`
+|The number of DML operations observed.
+
+|[[log-miner-metrics-currentlogfilename]]<<log-miner-metrics-currentlogfilename, `CurrentLogFileName`>>
+|`string[]`
+|The current redo log filename.
+
+|[[log-miner-metrics-redologstatus]]<<log-miner-metrics-redologstatus, `RedoLogStatus`>>
+|`string[]`
+|The current status of the redo logs.
+
+|[[log-miner-metrics-switchcounter]]<<log-miner-metrics-switchcounter, `SwitchCounter`>>
+|`long`
+|The number of times the redo logs have switched.
+
+|[[log-miner-metrics-lastlogminerqueryduration]]<<log-miner-metrics-lastlogminerqueryduration, `LastLogMinerQueryDuration`>>
+|`Duration`
+|The duration it took for the last log mining query to prepare results for processing.
+
+|[[log-miner-metrics-averagelogminerqueryduration]]<<log-miner-metrics-averagelogminerqueryduration, `AverageLogMinerQueryDuration`>>
+|`Duration`
+|The average duration it has taken for log mining queries to prepare results for processing.
+
+|[[log-miner-metrics-logminerquerycount]]<<log-miner-metrics-logminerquerycount, `LogMinerQueryCount`>>
+|`int`
+|The number of log mining queries executed.
+
+|[[log-miner-metrics-lastprocessedcapturedbatchduration]]<<log-miner-metrics-lastprocessedcapturedbatchduration, `LastProcessedCapturedBatchDuration`>>
+|`Duration`
+|The duration it took for the last log mining query results to be processed.
+
+|[[log-miner-metrics-averageprocessedcapturedbatchduration]]<<log-miner-metrics-averageprocessedcapturedbatchduration, `AverageProcessedCapturedBatchDuration`>>
+|`Duration`
+|The average duration it has taken for the log mining query results to be processed.
+
+|[[log-miner-metrics-processedcapturebatchcount]]<<log-miner-metrics-processedcapturebatchcount, `ProcesssedCaptureBatchCount`>>
+|`int`
+|The number of log mining query results processed.
+
+|[[log-miner-metrics-batchsize]]<<log-miner-metrics-batchsize, `BatchSize`>>
+|`int`
+|The number of entries fetched by the log mining query per database round-trip.
+
+|[[log-miner-metrics-millisecondtosleepbetweenminingquery]]<<log-miner-metrics-millisecondtosleepbetweenminingquery, `MillisecondToSleepBetweenMiningQuery`>>
+|`int`
+|The number of milliseconds the connector sleeps before fetching another batch of results from the log mining view.
+
+|===
 
 [[oracle-monitoring-schema-history]]
 [[oracle-schema-history-metrics]]
@@ -1137,6 +1335,12 @@ The following configuration properties are _required_ unless a default value is 
 |Logical name that identifies and provides a namespace for the particular Oracle database server being monitored. The logical name should be unique across all other connectors, since it is used as a prefix for all Kafka topic names emanating from this connector.
 Only alphanumeric characters and underscores should be used.
 
+|[[oracle-property-database-connection-adapter]]<<oracle-database-connection-adapter, `database.connection.adapter`>>
+|`xstream`
+|The adapter implementation to use.
+`xstream` uses the Oracle XStreams API.
+`logminer` uses the native Oracle LogMiner API.
+
 |[[oracle-property-database-history-kafka-topic]]<<oracle-property-database-history-kafka-topic, `database.history.kafka.topic`>>
 |
 |The full name of the Kafka topic where the connector will store the database schema history.
@@ -1149,13 +1353,15 @@ Only alphanumeric characters and underscores should be used.
 |_initial_
 |A mode for taking an initial snapshot of the structure and optionally data of captured tables. Supported values are _initial_ (will take a snapshot of structure and data of captured tables; useful if topics should be populated with a complete representation of the data from the captured tables) and _schema_only_ (will take a snapshot of the structure of captured tables only; useful if only changes happening from now onwards should be propagated to topics). Once the snapshot is complete, the connector will continue reading change events from the database's redo logs.
 
-|[[oracle-property-table-whitelist]]<<oracle-property-table-whitelist, `table.whitelist`>>
+|[[oracle-property-table-whitelist]]
+[[oracle-property-table-include-list]]<<oracle-property-table-include-list, `table.include.list`>>
 |_empty string_
-|An optional comma-separated list of regular expressions that match fully-qualified table identifiers for tables to be monitored; any table not included in the whitelist will be excluded from monitoring. Each identifier is of the form _schemaName_._tableName_. By default the connector will monitor every non-system table in each monitored database. May not be used with `table.blacklist`.
+|An optional comma-separated list of regular expressions that match fully-qualified table identifiers for tables to be monitored; any table not included in the include list will be excluded from monitoring. Each identifier is of the form _schemaName_._tableName_. By default the connector will monitor every non-system table in each monitored database. May not be used with `table.exclude.list`.
 
-|[[oracle-property-table-blacklist]]<<oracle-property-table-blacklist, `table.blacklist`>>
+|[[oracle-property-table-blacklist]]
+[[oracle-property-table-exclude-list]]<<oracle-property-table-exclude-list, `table.exclude.list`>>
 |_empty string_
-|An optional comma-separated list of regular expressions that match fully-qualified table identifiers for tables to be excluded from monitoring; any table not included in the blacklist will be monitored. Each identifier is of the form _schemaName_._tableName_. May not be used with `table.whitelist`.
+|An optional comma-separated list of regular expressions that match fully-qualified table identifiers for tables to be excluded from monitoring; any table not included in the exclude list will be monitored. Each identifier is of the form _schemaName_._tableName_. May not be used with `table.include.list`.
 
 |[[oracle-property-column-mask-hash]]<<oracle-property-column-mask-hash, `column.mask.hash._hashAlgorithm_.with.salt._salt_`>>
 |_n/a_

@@ -130,7 +130,7 @@ public class MongoDbConnectorIT extends AbstractConnectorTest {
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.COLLECTION_INCLUDE_LIST);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.COLLECTION_BLACKLIST);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.COLLECTION_EXCLUDE_LIST);
-        assertNoConfigurationErrors(result, MongoDbConnectorConfig.MAX_COPY_THREADS);
+        assertNoConfigurationErrors(result, MongoDbConnectorConfig.SNAPSHOT_MAX_THREADS);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.MAX_QUEUE_SIZE);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.MAX_BATCH_SIZE);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.POLL_INTERVAL_MS);
@@ -167,7 +167,7 @@ public class MongoDbConnectorIT extends AbstractConnectorTest {
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.COLLECTION_INCLUDE_LIST);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.COLLECTION_BLACKLIST);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.COLLECTION_EXCLUDE_LIST);
-        assertNoConfigurationErrors(result, MongoDbConnectorConfig.MAX_COPY_THREADS);
+        assertNoConfigurationErrors(result, MongoDbConnectorConfig.SNAPSHOT_MAX_THREADS);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.MAX_QUEUE_SIZE);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.MAX_BATCH_SIZE);
         assertNoConfigurationErrors(result, MongoDbConnectorConfig.POLL_INTERVAL_MS);
@@ -965,6 +965,100 @@ public class MongoDbConnectorIT extends AbstractConnectorTest {
         assertThat(after.get("op")).isEqualTo("bar");
     }
 
+    @Test
+    @FixFor("DBZ-2496")
+    public void shouldFilterItemsInCollectionWhileTakingSnapshot() throws Exception {
+        // Use the DB configuration to define the connector's configuration ...
+        config = TestHelper.getConfiguration().edit()
+                .with(MongoDbConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(MongoDbConnectorConfig.COLLECTION_INCLUDE_LIST, "dbit.*")
+                .with(MongoDbConnectorConfig.LOGICAL_NAME, "mongo")
+                .with(MongoDbConnectorConfig.SNAPSHOT_FILTER_QUERY_BY_COLLECTION, "dbit.simpletons,dbit.restaurants1,dbit.restaurants4")
+                .with(MongoDbConnectorConfig.SNAPSHOT_FILTER_QUERY_BY_COLLECTION + "." + "dbit.simpletons", "{ \"_id\": { \"$gt\": 4 } }")
+                .with(MongoDbConnectorConfig.SNAPSHOT_FILTER_QUERY_BY_COLLECTION + "." + "dbit.restaurants1",
+                        "{ $or: [ { cuisine: \"American \"}, { \"grades.grade\": \"Z\" } ] }")
+                .with(MongoDbConnectorConfig.SNAPSHOT_FILTER_QUERY_BY_COLLECTION + "." + "dbit.restaurants4", "{ cuisine: \"American \" , borough: \"Manhattan\"  }")
+                .build();
+
+        // Set up the replication context for connections ...
+        context = new MongoDbTaskContext(config);
+
+        // Cleanup database
+        TestHelper.cleanDatabase(primary(), "dbit");
+
+        // Before starting the connector, add data to the databases ...
+
+        // Before starting the connector, add data to the databases ...
+        storeDocuments("dbit", "simpletons", "simple_objects.json");
+        storeDocuments("dbit", "restaurants1", "restaurants1.json");
+        storeDocuments("dbit", "restaurants2", "restaurants2.json");
+        storeDocuments("dbit", "restaurants4", "restaurants4.json");
+
+        // Start the connector ...
+        start(MongoDbConnector.class, config);
+
+        // ---------------------------------------------------------------------------------------------------------------
+        // Consume all of the events due to startup and initialization of the database
+        // ---------------------------------------------------------------------------------------------------------------
+        SourceRecords records = consumeRecordsByTopic(15);
+        assertThat(records.topics().size()).isEqualTo(4);
+        assertThat(records.recordsForTopic("mongo.dbit.simpletons").size()).isEqualTo(4);
+        assertThat(records.recordsForTopic("mongo.dbit.restaurants1").size()).isEqualTo(3);
+        assertThat(records.recordsForTopic("mongo.dbit.restaurants2").size()).isEqualTo(4);
+        assertThat(records.recordsForTopic("mongo.dbit.restaurants4").size()).isEqualTo(4);
+        assertNoRecordsToConsume();
+
+        stopConnector();
+
+    }
+
+    @Test
+    @FixFor("DBZ-2456")
+    public void shouldSelectivelySnapshot() throws InterruptedException {
+        config = TestHelper.getConfiguration().edit()
+                .with(MongoDbConnectorConfig.POLL_INTERVAL_MS, 10)
+                .with(MongoDbConnectorConfig.SNAPSHOT_MODE, MongoDbConnectorConfig.SnapshotMode.INITIAL)
+                .with(MongoDbConnectorConfig.COLLECTION_INCLUDE_LIST, "dbit.*")
+                .with(CommonConnectorConfig.SNAPSHOT_MODE_TABLES, "[A-z].*dbit.restaurants1")
+                .with(MongoDbConnectorConfig.LOGICAL_NAME, "mongo")
+                .build();
+
+        // Set up the replication context for connections ...
+        context = new MongoDbTaskContext(config);
+
+        // Cleanup database
+        TestHelper.cleanDatabase(primary(), "dbit");
+
+        // Before starting the connector, add data to the databases ...
+        storeDocuments("dbit", "restaurants1", "restaurants1.json");
+        storeDocuments("dbit", "restaurants2", "restaurants2.json");
+
+        // Start the connector ...
+        start(MongoDbConnector.class, config);
+        waitForStreamingRunning("mongodb", "mongo");
+
+        SourceRecords records = consumeRecordsByTopic(6);
+
+        List<SourceRecord> restaurant1 = records.recordsForTopic("mongo.dbit.restaurants1");
+        List<SourceRecord> restaurant2 = records.recordsForTopic("mongo.dbit.restaurants2");
+
+        assertThat(restaurant1.size()).isEqualTo(6);
+        assertThat(restaurant2).isNull();
+
+        // Insert record
+        final Instant timestamp = Instant.now();
+        ObjectId objId = new ObjectId();
+        Document obj = Document.parse("{\"name\": \"Brunos On The Boulevard\", \"restaurant_id\": \"40356151\"}");
+        insertDocuments("dbit", "restaurants2", obj);
+
+        // Consume records, should be 1, the insert
+        records = consumeRecordsByTopic(1);
+        assertThat(records.allRecordsInOrder().size()).isEqualTo(1);
+        assertNoRecordsToConsume();
+
+        stopConnector();
+    }
+
     protected void verifyNotFromInitialSync(SourceRecord record) {
         assertThat(record.sourceOffset().containsKey(SourceInfo.INITIAL_SYNC)).isFalse();
         Struct value = (Struct) record.value();
@@ -1310,7 +1404,7 @@ public class MongoDbConnectorIT extends AbstractConnectorTest {
         assertThat(key.schema()).isSameAs(deleteRecord.keySchema());
         assertThat(key.get("id")).isEqualTo(JSONSerializers.getStrict().serialize(objId));
 
-        Document patchObj = Document.parse(value.getString("patch"));
+        Document patchObj = Document.parse(value.getString(MongoDbFieldName.PATCH));
         patchObj.remove("$v");
 
         assertThat(value.schema()).isSameAs(deleteRecord.valueSchema());
@@ -1365,7 +1459,7 @@ public class MongoDbConnectorIT extends AbstractConnectorTest {
 
         assertThat(value.schema()).isSameAs(deleteRecord.valueSchema());
         assertThat(value.getString(Envelope.FieldName.AFTER)).isNull();
-        assertThat(value.getString("patch")).isNull();
+        assertThat(value.getString(MongoDbFieldName.PATCH)).isNull();
         assertThat(value.getString(Envelope.FieldName.OPERATION)).isEqualTo(Operation.DELETE.code());
         assertThat(value.getInt64(Envelope.FieldName.TIMESTAMP)).isGreaterThanOrEqualTo(timestamp.toEpochMilli());
 
@@ -1424,7 +1518,7 @@ public class MongoDbConnectorIT extends AbstractConnectorTest {
 
         assertThat(value.schema()).isSameAs(record.valueSchema());
         assertThat(value.getString(Envelope.FieldName.AFTER)).isNull();
-        assertThat(value.getString("patch")).isNull();
+        assertThat(value.getString(MongoDbFieldName.PATCH)).isNull();
         assertThat(value.getString(Envelope.FieldName.OPERATION)).isEqualTo(Operation.DELETE.code());
         assertThat(value.getInt64(Envelope.FieldName.TIMESTAMP)).isGreaterThanOrEqualTo(timestamp.toEpochMilli());
 
@@ -1804,7 +1898,7 @@ public class MongoDbConnectorIT extends AbstractConnectorTest {
         assertThat(key.schema()).isSameAs(deleteRecord.keySchema());
         assertThat(key.get("id")).isEqualTo(JSONSerializers.getStrict().serialize(objId));
 
-        Document patchObj = Document.parse(value.getString("patch"));
+        Document patchObj = Document.parse(value.getString(MongoDbFieldName.PATCH));
         patchObj.remove("$v");
 
         assertThat(value.schema()).isSameAs(deleteRecord.valueSchema());

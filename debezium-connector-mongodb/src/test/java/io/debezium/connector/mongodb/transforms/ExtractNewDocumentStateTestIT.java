@@ -6,20 +6,26 @@
 package io.debezium.connector.mongodb.transforms;
 
 import static org.fest.assertions.Assertions.assertThat;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.bson.Document;
@@ -28,12 +34,17 @@ import org.bson.types.ObjectId;
 import org.fest.assertions.Assertions;
 import org.junit.Test;
 
+import io.debezium.connector.mongodb.MongoDbFieldName;
+import io.debezium.connector.mongodb.TestHelper;
 import io.debezium.data.Envelope;
 import io.debezium.data.Envelope.Operation;
 import io.debezium.data.SchemaUtil;
+import io.debezium.data.VerifyRecord;
 import io.debezium.doc.FixFor;
 import io.debezium.transforms.ExtractNewRecordStateConfigDefinition;
 import io.debezium.util.Collect;
+import io.debezium.util.IoUtil;
+import io.debezium.util.Testing;
 
 /**
  * Integration test for {@link ExtractNewDocumentState}. It sends operations into
@@ -55,6 +66,9 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
     private static final String ADD_SOURCE_FIELDS = "add.source.fields";
     private static final String ADD_HEADERS = "add.headers";
     private static final String ADD_FIELDS = "add.fields";
+    private static final String ADD_FIELDS_PREFIX = ADD_FIELDS + ".prefix";
+    private static final String ADD_HEADERS_PREFIX = ADD_HEADERS + ".prefix";
+    private static final String ARRAY_ENCODING = "array.encoding";
 
     @Override
     protected String getCollectionName() {
@@ -1230,20 +1244,21 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
     }
 
     @Test
-    @FixFor("DBZ-1791")
+    @FixFor({ "DBZ-1791", "DBZ-2504" })
     public void testAddHeadersSpecifyingStruct() throws Exception {
         waitForStreamingRunning();
 
         final Map<String, String> props = new HashMap<>();
         props.put(ADD_HEADERS, "op,source.rs,source.collection");
+        props.put(ADD_HEADERS_PREFIX, "prefix.");
         transformation.configure(props);
 
         final SourceRecord createRecord = createCreateRecord();
         final SourceRecord transformed = transformation.apply(createRecord);
         assertThat(transformed.headers()).hasSize(3);
-        assertThat(getSourceRecordHeaderByKey(transformed, "__op")).isEqualTo(Operation.CREATE.code());
-        assertThat(getSourceRecordHeaderByKey(transformed, "__source_rs")).isEqualTo("rs0");
-        assertThat(getSourceRecordHeaderByKey(transformed, "__source_collection")).isEqualTo(getCollectionName());
+        assertThat(getSourceRecordHeaderByKey(transformed, "prefix.op")).isEqualTo(Operation.CREATE.code());
+        assertThat(getSourceRecordHeaderByKey(transformed, "prefix.source_rs")).isEqualTo("rs0");
+        assertThat(getSourceRecordHeaderByKey(transformed, "prefix.source_collection")).isEqualTo(getCollectionName());
     }
 
     @Test
@@ -1261,18 +1276,19 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
     }
 
     @Test
-    @FixFor("DBZ-1791")
+    @FixFor({ "DBZ-1791", "DBZ-2504" })
     public void testAddFields() throws Exception {
         waitForStreamingRunning();
 
         final Map<String, String> props = new HashMap<>();
         props.put(ADD_FIELDS, "op , ts_ms");
+        props.put(ADD_FIELDS_PREFIX, "prefix.");
         transformation.configure(props);
 
         final SourceRecord createRecord = createCreateRecord();
         final SourceRecord transformed = transformation.apply(createRecord);
-        assertThat(((Struct) transformed.value()).get("__op")).isEqualTo(Operation.CREATE.code());
-        assertThat(((Struct) transformed.value()).get("__ts_ms")).isNotNull();
+        assertThat(((Struct) transformed.value()).get("prefix.op")).isEqualTo(Operation.CREATE.code());
+        assertThat(((Struct) transformed.value()).get("prefix.ts_ms")).isNotNull();
     }
 
     @Test
@@ -1379,6 +1395,300 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
         final SourceRecord tombstoneRecord = records.allRecordsInOrder().get(1);
         final SourceRecord tombstoneTransformed = transformation.apply(tombstoneRecord);
         assertThat(tombstoneTransformed.value()).isNull();
+    }
+
+    @Test
+    @FixFor("DBZ-2585")
+    public void testEmptyArray() throws InterruptedException, IOException {
+        final Map<String, String> transformationConfig = new HashMap<>();
+        transformationConfig.put("array.encoding", "array");
+        transformationConfig.put("sanitize.field.names", "true");
+        transformation.configure(transformationConfig);
+
+        // Test insert
+        primary().execute("insert", client -> {
+            client.getDatabase(DB_NAME).getCollection(this.getCollectionName())
+                    .insertOne(Document.parse("{'empty_array': [] }"));
+        });
+        SourceRecords records = consumeRecordsByTopic(1);
+        assertThat(records.recordsForTopic(this.topicName()).size()).isEqualTo(1);
+
+        final SourceRecord insertRecord = records.recordsForTopic(this.topicName()).get(0);
+        final SourceRecord transformedInsert = transformation.apply(insertRecord);
+
+        assertThat(transformedInsert.valueSchema().field("empty_array")).isNull();
+        VerifyRecord.isValid(transformedInsert);
+    }
+
+    @Test
+    @FixFor("DBZ-2455")
+    public void testAddPatchFieldAfterUpdate() throws Exception {
+        waitForStreamingRunning();
+
+        ObjectId objId = new ObjectId();
+        Document obj = new Document()
+                .append("_id", objId)
+                .append("a", 1)
+                .append("b", 2)
+                .append("c", 3);
+
+        // insert
+        primary().execute("insert", client -> {
+            client.getDatabase(DB_NAME).getCollection(this.getCollectionName()).insertOne(obj);
+        });
+
+        SourceRecords records = consumeRecordsByTopic(1);
+        assertThat(records.recordsForTopic(this.topicName()).size()).isEqualTo(1);
+        assertNoRecordsToConsume();
+
+        // update
+        Document updateObj = new Document().append("$set", new Document(Collect.hashMapOf("a", 22)));
+
+        // update
+        primary().execute("update", client -> {
+            client.getDatabase(DB_NAME).getCollection(this.getCollectionName())
+                    .updateOne(RawBsonDocument.parse("{ '_id' : { '$oid' : '" + objId + "'}}"), updateObj);
+        });
+
+        records = consumeRecordsByTopic(1);
+        assertThat(records.recordsForTopic(this.topicName()).size()).isEqualTo(1);
+        assertNoRecordsToConsume();
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(ADD_FIELDS, MongoDbFieldName.PATCH);
+        transformation.configure(props);
+
+        // Perform transformation
+        final SourceRecord transformed = transformation.apply(records.allRecordsInOrder().get(0));
+
+        Struct key = (Struct) transformed.key();
+        Struct value = (Struct) transformed.value();
+
+        // then assert key and its schema
+        assertThat(key.schema()).isSameAs(transformed.keySchema());
+        assertThat(key.schema().field("id").schema()).isEqualTo(SchemaBuilder.OPTIONAL_STRING_SCHEMA);
+        assertThat(key.get("id")).isEqualTo(objId.toString());
+
+        // and then assert value and its schema
+        assertThat(value.schema()).isSameAs(transformed.valueSchema());
+        assertThat(value.get("id")).isEqualTo(objId.toString());
+        assertThat(value.get("a")).isEqualTo(22);
+        String valueJson = TestHelper.getDocumentWithoutLanguageVersion(value.getString("__patch")).toJson();
+        assertThat(valueJson).isEqualTo("{\"$set\": {\"a\": 22}}");
+
+        assertThat(value.schema().field("id").schema()).isEqualTo(SchemaBuilder.OPTIONAL_STRING_SCHEMA);
+        assertThat(value.schema().field("a").schema()).isEqualTo(SchemaBuilder.OPTIONAL_INT32_SCHEMA);
+        assertThat(value.schema().field("__patch").schema()).isEqualTo(io.debezium.data.Json.builder().optional().build());
+        assertThat(value.schema().fields()).hasSize(3);
+    }
+
+    @Test(expected = DataException.class)
+    @FixFor("DBZ-2316")
+    public void testShouldThrowExceptionWithElementsDifferingStructures() throws Exception {
+        waitForStreamingRunning();
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(ARRAY_ENCODING, "array");
+        props.put(ADD_FIELDS, "op,source.ts_ms");
+        transformation.configure(props);
+
+        final SourceRecords records = createCreateRecordFromJson("dbz-2316.json");
+        for (SourceRecord record : records.allRecordsInOrder()) {
+            transformation.apply(record);
+        }
+    }
+
+    @Test
+    @FixFor("DBZ-2569")
+    public void testMatrixType() throws InterruptedException, IOException {
+        final Map<String, String> transformationConfig = new HashMap<>();
+        transformationConfig.put("array.encoding", "array");
+        transformationConfig.put(CONFIG_DROP_TOMBSTONES, "false");
+        transformationConfig.put(HANDLE_DELETES, "none");
+        transformation.configure(transformationConfig);
+
+        // Test insert
+        primary().execute("insert", client -> {
+            client.getDatabase(DB_NAME).getCollection(this.getCollectionName())
+                    .insertOne(Document.parse(
+                            "{"
+                                    + "  'matrix': ["
+                                    + "    [1,2,3],"
+                                    + "    [4,5,6],"
+                                    + "    [7,8,9],"
+                                    + "  ]"
+                                    + "  ,'array_complex': ["
+                                    + "    {'k1' : 'v1','k2' : 1},"
+                                    + "    {'k1' : 'v2','k2' : 2},"
+                                    + "  ]"
+                                    + "  ,'matrix_complex': ["
+                                    + "    ["
+                                    + "      {'k3' : 'v111',"
+                                    + "       'k4' : [1,2,3]},"
+                                    + "      {'k3' : 'v211',"
+                                    + "       'k4' : [4,5,6]}"
+                                    + "    ],"
+                                    + "    ["
+                                    + "      {'k3' : 'v112',"
+                                    + "       'k4' : [7,8]},"
+                                    + "      {'k3' : 'v212',"
+                                    + "       'k4' : [8]}"
+                                    + "    ],"
+                                    + "  ]"
+                                    + "}"));
+        });
+        SourceRecords records = consumeRecordsByTopic(1);
+        assertThat(records.recordsForTopic(this.topicName()).size()).isEqualTo(1);
+
+        final SourceRecord insertRecord = records.recordsForTopic(this.topicName()).get(0);
+        final SourceRecord transformedInsert = transformation.apply(insertRecord);
+        final Struct transformedInsertValue = (Struct) transformedInsert.value();
+
+        final Schema matrixSchema = transformedInsert.valueSchema().field("matrix").schema();
+        assertThat(matrixSchema.type()).isEqualTo(Schema.Type.ARRAY);
+        final Schema subMatrixSchema = matrixSchema.valueSchema().schema();
+        assertThat(subMatrixSchema.type()).isEqualTo(Schema.Type.ARRAY);
+        assertThat(subMatrixSchema.valueSchema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        assertThat(transformedInsertValue.get("matrix")).isEqualTo(Arrays.asList(Arrays.asList(1, 2, 3), Arrays.asList(4, 5, 6), Arrays.asList(7, 8, 9)));
+
+        final Schema arrayComplexSchema = transformedInsert.valueSchema().field("array_complex").schema();
+        assertThat(arrayComplexSchema.type()).isEqualTo(Schema.Type.ARRAY);
+        final Schema subArrayComplexSchema = arrayComplexSchema.valueSchema().schema();
+        assertThat(subArrayComplexSchema.type()).isEqualTo(Schema.Type.STRUCT);
+        assertThat(subArrayComplexSchema.field("k1").schema()).isEqualTo(Schema.OPTIONAL_STRING_SCHEMA);
+        assertThat(subArrayComplexSchema.field("k2").schema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        final Field k1 = subArrayComplexSchema.field("k1");
+        final Field k2 = subArrayComplexSchema.field("k2");
+        final Struct subStruct1 = new Struct(subArrayComplexSchema);
+        subStruct1.put(k1, "v1");
+        subStruct1.put(k2, 1);
+        final Struct subStruct2 = new Struct(subArrayComplexSchema);
+        subStruct2.put(k1, "v2");
+        subStruct2.put(k2, 2);
+        assertThat(transformedInsertValue.get("array_complex")).isEqualTo(Arrays.asList(subStruct1, subStruct2));
+
+        final Schema matrixComplexSchema = transformedInsert.valueSchema().field("matrix_complex").schema();
+        assertThat(matrixComplexSchema.type()).isEqualTo(Schema.Type.ARRAY);
+        final Schema subMatrixComplexSchema = matrixComplexSchema.valueSchema().schema();
+        assertThat(subMatrixComplexSchema.type()).isEqualTo(Schema.Type.ARRAY);
+        Schema strucSchema = subMatrixComplexSchema.valueSchema();
+        assertThat(strucSchema.schema().type()).isEqualTo(Schema.Type.STRUCT);
+        assertThat(strucSchema.field("k3").schema()).isEqualTo(Schema.OPTIONAL_STRING_SCHEMA);
+        assertThat(strucSchema.field("k4").schema().type()).isEqualTo(Schema.Type.ARRAY);
+        assertThat(strucSchema.field("k4").schema().valueSchema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        final Field k3 = strucSchema.field("k3");
+        final Field k4 = strucSchema.field("k4");
+        final Struct subStruct11 = new Struct(strucSchema.schema());
+        subStruct11.put(k3, "v111");
+        subStruct11.put(k4, Arrays.asList(1, 2, 3));
+        final Struct subStruct12 = new Struct(strucSchema.schema());
+        subStruct12.put(k3, "v112");
+        subStruct12.put(k4, Arrays.asList(7, 8));
+        final Struct subStruct21 = new Struct(strucSchema.schema());
+        subStruct21.put(k3, "v211");
+        subStruct21.put(k4, Arrays.asList(4, 5, 6));
+        final Struct subStruct22 = new Struct(strucSchema.schema());
+        subStruct22.put(k3, "v212");
+        subStruct22.put(k4, Arrays.asList(8));
+        assertThat(transformedInsertValue.get("matrix_complex"))
+                .isEqualTo(Arrays.asList(Arrays.asList(subStruct11, subStruct21), Arrays.asList(subStruct12, subStruct22)));
+    }
+
+    @Test
+    @FixFor("DBZ-2569")
+    public void testMatrixArrayAsDocumentType() throws InterruptedException, IOException {
+        final Map<String, String> transformationConfig = new HashMap<>();
+        transformationConfig.put("array.encoding", "document");
+        transformationConfig.put(CONFIG_DROP_TOMBSTONES, "false");
+        transformationConfig.put(HANDLE_DELETES, "none");
+        transformation.configure(transformationConfig);
+
+        // Test insert
+        primary().execute("insert", client -> {
+            client.getDatabase(DB_NAME).getCollection(this.getCollectionName())
+                    .insertOne(Document.parse(
+                            "{"
+                                    + "  'matrix': ["
+                                    + "    [1,'aa',3],"
+                                    + "    [4,5,'6'],"
+                                    + "    [7.0,8],"
+                                    + "  ]"
+                                    + "}"));
+        });
+        SourceRecords records = consumeRecordsByTopic(1);
+        assertThat(records.recordsForTopic(this.topicName()).size()).isEqualTo(1);
+
+        final SourceRecord insertRecord = records.recordsForTopic(this.topicName()).get(0);
+        final SourceRecord transformedInsert = transformation.apply(insertRecord);
+
+        final Schema matrixSchema = transformedInsert.valueSchema().field("matrix").schema();
+        assertThat(matrixSchema.type()).isEqualTo(Schema.Type.STRUCT);
+        assertThat(matrixSchema.fields().size()).isEqualTo(3);
+        final Schema firstSubSchema = matrixSchema.field("_0").schema();
+        assertThat(firstSubSchema.type()).isEqualTo(Schema.Type.STRUCT);
+        assertThat(firstSubSchema.fields().size()).isEqualTo(3);
+        assertThat(firstSubSchema.field("_0").schema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        assertThat(firstSubSchema.field("_1").schema()).isEqualTo(Schema.OPTIONAL_STRING_SCHEMA);
+        assertThat(firstSubSchema.field("_2").schema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        final Schema secondSubSchema = matrixSchema.field("_1").schema();
+        assertThat(secondSubSchema.type()).isEqualTo(Schema.Type.STRUCT);
+        assertThat(secondSubSchema.fields().size()).isEqualTo(3);
+        assertThat(secondSubSchema.field("_0").schema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        assertThat(secondSubSchema.field("_1").schema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        assertThat(secondSubSchema.field("_2").schema()).isEqualTo(Schema.OPTIONAL_STRING_SCHEMA);
+        final Schema thirdSubSchema = matrixSchema.field("_2").schema();
+        assertThat(thirdSubSchema.type()).isEqualTo(Schema.Type.STRUCT);
+        assertThat(thirdSubSchema.fields().size()).isEqualTo(2);
+        assertThat(thirdSubSchema.field("_0").schema()).isEqualTo(Schema.OPTIONAL_FLOAT64_SCHEMA);
+        assertThat(thirdSubSchema.field("_1").schema()).isEqualTo(Schema.OPTIONAL_INT32_SCHEMA);
+        final Struct transformedInsertValue = (Struct) transformedInsert.value();
+        final Struct firstSubStruct = new Struct(firstSubSchema);
+        firstSubStruct.put(firstSubSchema.field("_0"), 1);
+        firstSubStruct.put(firstSubSchema.field("_1"), "aa");
+        firstSubStruct.put(firstSubSchema.field("_2"), 3);
+        final Struct secondSubStruct = new Struct(secondSubSchema);
+        secondSubStruct.put(secondSubSchema.field("_0"), 4);
+        secondSubStruct.put(secondSubSchema.field("_1"), 5);
+        secondSubStruct.put(secondSubSchema.field("_2"), "6");
+        final Struct thirdSubStruct = new Struct(thirdSubSchema);
+        thirdSubStruct.put(thirdSubSchema.field("_0"), 7.0);
+        thirdSubStruct.put(thirdSubSchema.field("_1"), 8);
+        final Struct struct = new Struct(matrixSchema);
+        struct.put(matrixSchema.field("_0"), firstSubStruct);
+        struct.put(matrixSchema.field("_1"), secondSubStruct);
+        struct.put(matrixSchema.field("_2"), thirdSubStruct);
+        assertThat(transformedInsertValue.get("matrix")).isEqualTo(struct);
+    }
+
+    private SourceRecords createCreateRecordFromJson(String pathOnClasspath) throws Exception {
+        final List<Document> documents = loadTestDocuments(pathOnClasspath);
+        primary().execute("Load JSON", client -> {
+            for (Document document : documents) {
+                client.getDatabase(DB_NAME).getCollection(getCollectionName()).insertOne(document);
+            }
+        });
+
+        final SourceRecords records = consumeRecordsByTopic(documents.size());
+        assertThat(records.recordsForTopic(topicName()).size()).isEqualTo(documents.size());
+        assertNoRecordsToConsume();
+
+        return records;
+    }
+
+    private List<Document> loadTestDocuments(String pathOnClasspath) {
+        final List<Document> documents = new ArrayList<>();
+        try (InputStream stream = Testing.Files.readResourceAsStream(pathOnClasspath)) {
+            assertThat(stream).isNotNull();
+            IoUtil.readLines(stream, line -> {
+                Document document = Document.parse(line);
+                assertThat(document.size()).isGreaterThan(0);
+                documents.add(document);
+            });
+        }
+        catch (IOException e) {
+            fail("Unable to find or read file '" + pathOnClasspath + "': " + e.getMessage());
+        }
+        return documents;
     }
 
     private SourceRecord createCreateRecord() throws Exception {

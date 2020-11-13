@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import javax.management.InstanceNotFoundException;
+import javax.management.JMException;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
@@ -67,6 +70,8 @@ import io.debezium.engine.DebeziumEngine;
 import io.debezium.function.BooleanConsumer;
 import io.debezium.junit.SkipTestRule;
 import io.debezium.junit.TestLogger;
+import io.debezium.pipeline.txmetadata.TransactionMonitor;
+import io.debezium.pipeline.txmetadata.TransactionStatus;
 import io.debezium.relational.history.HistoryRecord;
 import io.debezium.util.LoggingContext;
 import io.debezium.util.Testing;
@@ -88,6 +93,7 @@ public abstract class AbstractConnectorTest implements Testing {
     public TestRule skipTestRule = new SkipTestRule();
 
     protected static final Path OFFSET_STORE_PATH = Testing.Files.createTestingPath("file-connector-offsets.txt").toAbsolutePath();
+    private static final String TEST_PROPERTY_PREFIX = "debezium.test.";
 
     private ExecutorService executor;
     protected EmbeddedEngine engine;
@@ -179,7 +185,7 @@ public abstract class AbstractConnectorTest implements Testing {
                 }
             }
             if (callback != null) {
-                callback.accept(engine != null ? engine.isRunning() : false);
+                callback.accept(engine != null && engine.isRunning());
             }
         }
         finally {
@@ -349,7 +355,7 @@ public abstract class AbstractConnectorTest implements Testing {
             engine.run();
         });
         try {
-            if (!latch.await(1000, TimeUnit.SECONDS)) {
+            if (!latch.await(5, TimeUnit.MINUTES)) {
                 // maybe it takes more time to start up, so just log a warning and continue
                 logger.warn("The connector did not finish starting its task(s) or complete in the expected amount of time");
             }
@@ -499,6 +505,151 @@ public abstract class AbstractConnectorTest implements Testing {
         return records;
     }
 
+    /**
+     * Try to consume and capture exactly the specified number of Dml records from the connector.
+     *
+     * While transaction metadata topic records are captured by this method, the {@code numDmlRecords} should not
+     * include the expected number of records emitted to the transaction topic.
+     *
+     * @param numDmlRecords the number of Dml records that should be consumed
+     * @return the collector to which the records were captured; never null
+     * @throws InterruptedException if the thread was interrupted while waiting for a record to be returned
+     */
+    protected SourceRecords consumeDmlRecordsByTopic(int numDmlRecords) throws InterruptedException {
+        SourceRecords records = new SourceRecords();
+        consumeDmlRecordsByTopic(numDmlRecords, records::add);
+        return records;
+    }
+
+    /**
+     * Try to consume the specified number of records from the connector, calling the given function for each, and return the
+     * actual number of Dml records that were consumed.
+     * For slower connectors it is possible to receive no records form the connector at most 3 times in a row
+     * till the waiting is terminated.
+     *
+     * @param numberDmlRecords the number of Dml records that should be consumed
+     * @param recordConsumer the function that should be called for each consumed record
+     * @return the actual number of Dml records that were consumed
+     * @throws InterruptedException if the thread was interrupted while waiting for a record to be returned
+     */
+    protected int consumeDmlRecordsByTopic(int numberDmlRecords, Consumer<SourceRecord> recordConsumer) throws InterruptedException {
+        return consumeDmlRecordsByTopic(numberDmlRecords, 3, recordConsumer, true);
+    }
+
+    /**
+     * Try to consume the specified number of records from the connector, calling the given function for each, and return the
+     * actual number of Dml records that were consumed.
+     *
+     * For slower connectors it is possible to receive no records from the connector at most 3 times in a row
+     * until the waiting is terminated.  Additionally, while this method will consume and append transaction metadata
+     * topic records to the consumer, the returned value only considers Dml records.
+     *
+     * @param numberOfRecords the number of Dml records that should be consumed
+     * @param breakAfterNulls the number of allowed run when no records are consumed
+     * @param recordConsumer the function that should be called for each consumed record
+     * @param assertRecords true if records serialization should be verified
+     * @return the actual number of Dml records that were consumed
+     * @throws InterruptedException if the thread was interrupted while waiting for a record to be returned
+     */
+    protected int consumeDmlRecordsByTopic(int numberOfRecords, int breakAfterNulls, Consumer<SourceRecord> recordConsumer, boolean assertRecords)
+            throws InterruptedException {
+        int recordsConsumed = 0;
+        int nullReturn = 0;
+        Set<String> endTransactions = new LinkedHashSet<>();
+        while (recordsConsumed < numberOfRecords) {
+            SourceRecord record = consumedLines.poll(pollTimeoutInMs, TimeUnit.MILLISECONDS);
+            if (record != null) {
+                nullReturn = 0;
+                final Struct value = (Struct) record.value();
+                if (isTransactionRecord(record)) {
+                    final String status = value.getString(TransactionMonitor.DEBEZIUM_TRANSACTION_STATUS_KEY);
+                    if (status.equals(TransactionStatus.BEGIN.name())) {
+                        endTransactions.add(value.getString(TransactionMonitor.DEBEZIUM_TRANSACTION_ID_KEY));
+                    }
+                    else {
+                        endTransactions.remove(value.getString(TransactionMonitor.DEBEZIUM_TRANSACTION_ID_KEY));
+                    }
+                }
+                else {
+                    final String txId = value.getStruct("source").getInt64("txId").toString();
+                    assertThat(endTransactions.contains(txId)).as("DML record txId " + txId + " not in open transaction set").isTrue();
+                    ++recordsConsumed;
+                }
+                if (recordConsumer != null) {
+                    recordConsumer.accept(record);
+                }
+                if (Testing.Debug.isEnabled()) {
+                    Testing.debug("Consumed record " + recordsConsumed + " / " + numberOfRecords + " ("
+                            + (numberOfRecords - recordsConsumed) + " more), " + endTransactions.size() + " active transactions");
+                    debug(record);
+                }
+                else if (Testing.Print.isEnabled()) {
+                    Testing.print("Consumed record " + recordsConsumed + " / " + numberOfRecords + " ("
+                            + (numberOfRecords - recordsConsumed) + " more), " + endTransactions.size() + " active transactions");
+                    print(record);
+                }
+                if (assertRecords) {
+                    VerifyRecord.isValid(record);
+                }
+            }
+            else {
+                if (++nullReturn >= breakAfterNulls) {
+                    return recordsConsumed;
+                }
+            }
+        }
+
+        while (!endTransactions.isEmpty()) {
+            SourceRecord record = consumedLines.poll(pollTimeoutInMs, TimeUnit.MILLISECONDS);
+            if (record != null) {
+                nullReturn = 0;
+                final Struct value = (Struct) record.value();
+                if (isTransactionRecord(record)) {
+                    final String status = value.getString(TransactionMonitor.DEBEZIUM_TRANSACTION_STATUS_KEY);
+                    if (status.equals(TransactionStatus.END.name())) {
+                        endTransactions.remove(value.getString(TransactionMonitor.DEBEZIUM_TRANSACTION_ID_KEY));
+                    }
+                    else {
+                        endTransactions.add(value.getString(TransactionMonitor.DEBEZIUM_TRANSACTION_ID_KEY));
+                    }
+                }
+                else {
+                    final String txId = value.getStruct("source").getInt64("txId").toString();
+                    assertThat(endTransactions.contains(txId)).as("DML record txId " + txId + " not in open transaction set").isTrue();
+                    ++recordsConsumed;
+                }
+                if (recordConsumer != null) {
+                    recordConsumer.accept(record);
+                }
+                if (Testing.Debug.isEnabled()) {
+                    Testing.debug("Consumed record " + recordsConsumed + " / " + numberOfRecords + " ("
+                            + (numberOfRecords - recordsConsumed) + " more), " + endTransactions.size() + " active transactions");
+                    debug(record);
+                }
+                else if (Testing.Print.isEnabled()) {
+                    Testing.print("Consumed record " + recordsConsumed + " / " + numberOfRecords + " ("
+                            + (numberOfRecords - recordsConsumed) + " more), " + endTransactions.size() + " active transactions");
+                    print(record);
+                }
+                if (assertRecords) {
+                    VerifyRecord.isValid(record);
+                }
+            }
+            else {
+                if (++nullReturn >= breakAfterNulls) {
+                    return recordsConsumed;
+                }
+            }
+        }
+        return recordsConsumed;
+    }
+
+    protected boolean isTransactionRecord(SourceRecord record) {
+        return record != null
+                && record.topic().endsWith(".transaction")
+                && record.keySchema().name().equals("io.debezium.connector.common.TransactionMetadataKey");
+    }
+
     protected class SourceRecords {
         private final List<SourceRecord> records = new ArrayList<>();
         private final Map<String, List<SourceRecord>> recordsByTopic = new HashMap<>();
@@ -580,7 +731,7 @@ public abstract class AbstractConnectorTest implements Testing {
                 Testing.print(" - topic:'" + k + "'; # of events = " + v.size());
             });
             Testing.print("Records:");
-            records.forEach(record -> AbstractConnectorTest.this.print(record));
+            records.forEach(AbstractConnectorTest.this::print);
         }
     }
 
@@ -615,7 +766,7 @@ public abstract class AbstractConnectorTest implements Testing {
                 break;
             }
         }
-        return consumedLines.isEmpty() ? false : true;
+        return !consumedLines.isEmpty();
     }
 
     /**
@@ -637,6 +788,13 @@ public abstract class AbstractConnectorTest implements Testing {
      */
     protected void assertNoRecordsToConsume() {
         assertThat(consumedLines.isEmpty()).isTrue();
+    }
+
+    /**
+     * Assert that there are only transaction topic records to be consumed.
+     */
+    protected void assertOnlyTransactionRecordsToConsume() {
+        consumedLines.iterator().forEachRemaining(r -> assertThat(isTransactionRecord(r)).isTrue());
     }
 
     protected void assertKey(SourceRecord record, String pkField, int pk) {
@@ -868,13 +1026,18 @@ public abstract class AbstractConnectorTest implements Testing {
         Assertions.assertThat(offset.get("transaction_id")).isEqualTo(expectedTxId);
     }
 
+    public static int waitTimeForRecords() {
+        return Integer.parseInt(System.getProperty(TEST_PROPERTY_PREFIX + "records.waittime", "2"));
+    }
+
     public static void waitForSnapshotToBeCompleted(String connector, String server) throws InterruptedException {
         final MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
 
         Awaitility.await()
                 .alias("Streaming was not started on time")
                 .pollInterval(100, TimeUnit.MILLISECONDS)
-                .atMost(60, TimeUnit.SECONDS)
+                .atMost(waitTimeForRecords() * 30, TimeUnit.SECONDS)
+                .ignoreException(InstanceNotFoundException.class)
                 .until(() -> {
                     boolean snapshotCompleted = (boolean) mbeanServer
                             .getAttribute(getSnapshotMetricsObjectName(connector, server), "SnapshotCompleted");
@@ -887,19 +1050,28 @@ public abstract class AbstractConnectorTest implements Testing {
         waitForStreamingRunning(connector, server, "streaming");
     }
 
-    public static void waitForStreamingRunning(String connector, String server, String contextName) throws InterruptedException {
-        final MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
-
+    public static void waitForStreamingRunning(String connector, String server, String contextName) {
         Awaitility.await()
                 .alias("Streaming was not started on time")
                 .pollInterval(100, TimeUnit.MILLISECONDS)
-                .atMost(60, TimeUnit.SECONDS)
-                .until(() -> {
-                    boolean connected = (boolean) mbeanServer
-                            .getAttribute(getStreamingMetricsObjectName(connector, server, contextName), "Connected");
+                .atMost(waitTimeForRecords() * 30, TimeUnit.SECONDS)
+                .ignoreException(InstanceNotFoundException.class)
+                .until(() -> isStreamingRunning(connector, server, contextName));
+    }
 
-                    return connected;
-                });
+    public static boolean isStreamingRunning(String connector, String server) {
+        return isStreamingRunning(connector, server, "streaming");
+    }
+
+    public static boolean isStreamingRunning(String connector, String server, String contextName) {
+        final MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
+
+        try {
+            return (boolean) mbeanServer.getAttribute(getStreamingMetricsObjectName(connector, server, contextName), "Connected");
+        }
+        catch (JMException ignored) {
+        }
+        return false;
     }
 
     public static ObjectName getSnapshotMetricsObjectName(String connector, String server) throws MalformedObjectNameException {

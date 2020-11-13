@@ -22,7 +22,7 @@ public interface Table {
      *
      * @return the editor; never null
      */
-    public static TableEditor editor() {
+    static TableEditor editor() {
         return new TableEditorImpl();
     }
 

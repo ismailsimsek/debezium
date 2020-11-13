@@ -94,14 +94,32 @@ public class ExtractNewRecordStateConfigDefinition {
             .withImportance(ConfigDef.Importance.LOW)
             .withDefault("");
 
+    public static final Field ADD_FIELDS_PREFIX = Field.create("add.fields.prefix")
+            .withDisplayName("Field prefix to be added to each field.")
+            .withType(ConfigDef.Type.STRING)
+            .withWidth(ConfigDef.Width.SHORT)
+            .withImportance(ConfigDef.Importance.LOW)
+            .withDefault(METADATA_FIELD_PREFIX)
+            .withDescription("Adds this prefix to each field listed.");
+
     public static final Field ADD_FIELDS = Field.create("add.fields")
             .withDisplayName("Adds the specified field(s) to the message if they exist.")
             .withType(ConfigDef.Type.LIST)
             .withWidth(ConfigDef.Width.LONG)
             .withImportance(ConfigDef.Importance.LOW)
             .withDefault("")
-            .withDescription("Adds each field listed, prefixed with __ (or __<struct>_ if the struct is specified) "
-                    + "Example: 'version,connector,source.ts_ms' would add __version, __connector and __source_ts_ms fields");
+            .withDescription("Adds each field listed, prefixed with __ (or __<struct>_ if the struct is specified). "
+                    + "Example: 'version,connector,source.ts_ms' would add __version, __connector and __source_ts_ms fields. "
+                    + "Optionally one can also map new field name like version:VERSION,connector:CONNECTOR,source.ts_ms:EVENT_TIMESTAMP."
+                    + "Please note that the new field name is case-sensitive.");
+
+    public static final Field ADD_HEADERS_PREFIX = Field.create("add.headers.prefix")
+            .withDisplayName("Header prefix to be added to each header.")
+            .withType(ConfigDef.Type.STRING)
+            .withWidth(ConfigDef.Width.SHORT)
+            .withImportance(ConfigDef.Importance.LOW)
+            .withDefault(METADATA_FIELD_PREFIX)
+            .withDescription("Adds this prefix listed to each header.");
 
     public static final Field ADD_HEADERS = Field.create("add.headers")
             .withDisplayName("Adds the specified fields to the header if they exist.")
@@ -109,7 +127,9 @@ public class ExtractNewRecordStateConfigDefinition {
             .withWidth(ConfigDef.Width.LONG)
             .withImportance(ConfigDef.Importance.LOW)
             .withDefault("")
-            .withDescription("Adds each field listed to the header,  __ (or __<struct>_ if the struct is specified) "
-                    + "Example: 'version,connector,source.ts_ms' would add __version, __connector and __source_ts_ms fields");
+            .withDescription("Adds each field listed to the header,  __ (or __<struct>_ if the struct is specified). "
+                    + "Example: 'version,connector,source.ts_ms' would add __version, __connector and __source_ts_ms fields. "
+                    + "Optionally one can also map new field name like version:VERSION,connector:CONNECTOR,source.ts_ms:EVENT_TIMESTAMP."
+                    + "Please note that the new field name is case-sensitive.");
 
 }
