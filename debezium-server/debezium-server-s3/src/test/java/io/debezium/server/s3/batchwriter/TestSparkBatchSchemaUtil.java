@@ -6,6 +6,7 @@
 
 package io.debezium.server.s3.batchwriter;
 
+import io.debezium.util.Testing;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -15,17 +16,25 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 import io.debezium.server.s3.batchwriter.spark.SparkBatchSchemaUtil;
-import io.quarkus.test.junit.QuarkusTest;
 
-@QuarkusTest
+
 class TestSparkBatchSchemaUtil {
 
+    final String serdeUpdate = Testing.Files.readResourceAsString("json/serde-update.json");
+    final String serdeWithSchema = Testing.Files.readResourceAsString("json/serde-with-schema.json");
+    final String unwrapWithSchema = Testing.Files.readResourceAsString("json/unwrap-with-schema.json");
+
     @Test
-    public void testSparkBatchSchemaUtil() throws JsonProcessingException {
-        String event = "{\"schema\":{\"type\":\"struct\",\"fields\":[{\"type\":\"int32\",\"optional\":false,\"field\":\"id\"},{\"type\":\"int32\",\"optional\":false,\"name\":\"io.debezium.time.Date\",\"version\":1,\"field\":\"order_date\"},{\"type\":\"int32\",\"optional\":false,\"field\":\"purchaser\"},{\"type\":\"int32\",\"optional\":false,\"field\":\"quantity\"},{\"type\":\"int32\",\"optional\":false,\"field\":\"product_id\"},{\"type\":\"string\",\"optional\":true,\"field\":\"__op\"},{\"type\":\"string\",\"optional\":true,\"field\":\"__table\"},{\"type\":\"int64\",\"optional\":true,\"field\":\"__lsn\"},{\"type\":\"int64\",\"optional\":true,\"field\":\"__source_ts_ms\"},{\"type\":\"string\",\"optional\":true,\"field\":\"__deleted\"}],\"optional\":false,\"name\":\"testc.inventory.orders.Value\"},\"payload\":{\"id\":10003,\"order_date\":16850,\"purchaser\":1002,\"quantity\":2,\"product_id\":106,\"__op\":\"r\",\"__table\":\"orders\",\"__lsn\":33832960,\"__source_ts_ms\":1596309876678,\"__deleted\":\"false\"}}";
-        StructType s = SparkBatchSchemaUtil.getSparkDfSchema(event);
+    public void testSimpleSchema() throws JsonProcessingException {
+        StructType s = SparkBatchSchemaUtil.getEventSparkDfSchema(unwrapWithSchema);
         assertNotNull(s);
-        System.out.println(s.catalogString());
         assertTrue(s.catalogString().contains("id:int,order_date:int,purchaser:int,quantity:int,product_id:int,__op:string"));
+    }
+    @Test
+    public void testNestedSchema() throws JsonProcessingException {
+        StructType s = SparkBatchSchemaUtil.getEventSparkDfSchema(serdeWithSchema);
+        assertNotNull(s);
+        assertTrue(s.catalogString().contains("before:struct<id"));
+        assertTrue(s.catalogString().contains("after:struct<id"));
     }
 }

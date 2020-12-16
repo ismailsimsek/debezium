@@ -32,9 +32,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TestS3MinioServer {
+public class S3MinioServer {
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(TestS3MinioServer.class);
+    protected static final Logger LOGGER = LoggerFactory.getLogger(S3MinioServer.class);
     static final int MINIO_DEFAULT_PORT = 9000;
     static final int MINIO_DEFAULT_PORT_MAP = 9000;
     static final String DEFAULT_IMAGE = "minio/minio:latest";
@@ -63,7 +63,7 @@ public class TestS3MinioServer {
                         .withStartupTimeout(Duration.ofSeconds(30)))
                 .withEnv("MINIO_ACCESS_KEY", MINIO_ACCESS_KEY)
                 .withEnv("MINIO_SECRET_KEY", MINIO_SECRET_KEY)
-                .withEnv("MINIO_REGION_NAME", S3TestConfigSource.S3_REGION)
+                .withEnv("MINIO_REGION_NAME", ConfigSource.S3_REGION)
                 .withCommand("server " + DEFAULT_STORAGE_DIRECTORY);
         this.container.start();
 
@@ -73,8 +73,8 @@ public class TestS3MinioServer {
                 .build();
         client.ignoreCertCheck();
         client.makeBucket(MakeBucketArgs.builder()
-                .region(S3TestConfigSource.S3_REGION)
-                .bucket(S3TestConfigSource.S3_BUCKET)
+                .region(ConfigSource.S3_REGION)
+                .bucket(ConfigSource.S3_BUCKET)
                 .build());
 
         LOGGER.info("Minio Started!");

@@ -10,6 +10,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Iterables;
 import io.debezium.server.s3.keymapper.ObjectKeyMapper;
 import org.apache.commons.io.IOUtils;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -48,18 +50,7 @@ public class SparkIcebergBatchRecordWriter extends AbstractSparkBatchRecordWrite
         DataFrameReader dfReader = spark.read();
         // Read DF with Schema if schema exists
         if (!jsonData.isEmpty()) {
-            try {
-                StructType schema = SparkBatchSchemaUtil.getSparkDfSchema(Iterables.getLast(jsonData));
-                if (schema != null && !schema.isEmpty()) {
-                    dfReader.schema(schema);
-                    LOGGER.info("Found Schema in data: {}", schema.toDDL());
-                }
-            }
-            catch (JsonProcessingException e) {
-                LOGGER.warn(e.getMessage());
-                LOGGER.warn("Failed to create Spark Schema. Falling back to Schema inference");
-            }
-
+            this.setReaderSchema(dfReader, Iterables.getLast(jsonData));
             Dataset<Row> df = dfReader.json(ds);
             if (removeSchema && Arrays.asList(df.columns()).contains("payload")) {
                 df = df.select("payload.*");
@@ -69,7 +60,10 @@ public class SparkIcebergBatchRecordWriter extends AbstractSparkBatchRecordWrite
                 df.write().format(saveFormat).mode("append").save(fileName);
             }
             catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
-                df.write().format(saveFormat).mode("overwrite").save(fileName);
+                HadoopTables tables = new HadoopTables(this.spark.sparkContext().hadoopConfiguration());
+                tables.create(SparkSchemaUtil.convert(df.schema()), fileName);
+                LOGGER.debug("Created Table:{}", fileName);
+                df.write().format(saveFormat).mode("append").save(fileName);
             }
 
         }

@@ -1,1 +1,1 @@
-io.debezium.server.s3.S3TestConfigSource
+io.debezium.server.s3.ConfigSource

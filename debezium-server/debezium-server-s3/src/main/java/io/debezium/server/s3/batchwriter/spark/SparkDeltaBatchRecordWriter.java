@@ -64,17 +64,7 @@ public class SparkDeltaBatchRecordWriter extends AbstractSparkBatchRecordWriter 
         DataFrameReader dfReader = spark.read();
         // Read DF with Schema if schema exists
         if (!jsonData.isEmpty()) {
-            try {
-                StructType schema = SparkBatchSchemaUtil.getSparkDfSchema(Iterables.getLast(jsonData));
-                if (schema != null && !schema.isEmpty()) {
-                    dfReader.schema(schema);
-                    LOGGER.info("Found Schema in data: {}", schema.toDDL());
-                }
-            }
-            catch (JsonProcessingException e) {
-                LOGGER.warn(e.getMessage());
-                LOGGER.warn("Failed to create Spark Schema. Falling back to Schema inference");
-            }
+            this.setReaderSchema(dfReader, Iterables.getLast(jsonData));
 
             Dataset<Row> df = dfReader.json(ds);
             if (removeSchema && Arrays.asList(df.columns()).contains("payload")) {

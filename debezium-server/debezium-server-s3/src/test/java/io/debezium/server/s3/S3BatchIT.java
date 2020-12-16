@@ -42,12 +42,6 @@ import io.debezium.util.Testing;
 import io.quarkus.test.junit.QuarkusTest;
 
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
-import software.amazon.awssdk.services.s3.model.ListObjectsResponse;
-import software.amazon.awssdk.services.s3.model.S3Object;
 
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to s3 destination.
@@ -59,14 +53,14 @@ public class S3BatchIT {
 
     private static final int MESSAGE_COUNT = 2;
     static ProfileCredentialsProvider pcred = ProfileCredentialsProvider.create("default");
-    protected static final TestS3MinioServer s3server = new TestS3MinioServer();
+    protected static final S3MinioServer s3server = new S3MinioServer();
 
     protected static TestDatabase db = null;
 
     {
         // Testing.Debug.enable();
-        Testing.Files.delete(S3TestConfigSource.OFFSET_STORE_PATH);
-        Testing.Files.createTestingFile(S3TestConfigSource.OFFSET_STORE_PATH);
+        Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
+        Testing.Files.createTestingFile(ConfigSource.OFFSET_STORE_PATH);
     }
 
     @AfterAll
@@ -110,11 +104,11 @@ public class S3BatchIT {
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("s3batch"));
 
-        Awaitility.await().atMost(Duration.ofSeconds(S3TestConfigSource.waitForSeconds()))
-                .until(() -> s3server.getObjectList(S3TestConfigSource.S3_BUCKET).toString().contains(S3TestConfigSource.S3_BUCKET));
+        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds()))
+                .until(() -> s3server.getObjectList(ConfigSource.S3_BUCKET).toString().contains(ConfigSource.S3_BUCKET));
 
-        Awaitility.await().atMost(Duration.ofSeconds(S3TestConfigSource.waitForSeconds())).until(() -> {
-            return s3server.getObjectList(S3TestConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
+        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
+            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
 
         JsonBatchRecordWriter bw = new JsonBatchRecordWriter(new TimeBasedDailyObjectKeyMapper());
@@ -127,8 +121,8 @@ public class S3BatchIT {
         bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
         bw.close();
 
-        Awaitility.await().atMost(Duration.ofSeconds(S3TestConfigSource.waitForSeconds())).until(() -> {
-            List<Item> objects = s3server.getObjectList(S3TestConfigSource.S3_BUCKET);
+        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
+            List<Item> objects = s3server.getObjectList(ConfigSource.S3_BUCKET);
             // we expect to see 2 batch files {0,1}
             for (Item o : objects) {
                 if (o.toString().contains("table1") && o.toString().contains("-1.json")) {

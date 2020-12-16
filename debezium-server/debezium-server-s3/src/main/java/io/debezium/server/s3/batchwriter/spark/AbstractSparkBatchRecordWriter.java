@@ -88,6 +88,20 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
         }
     }
 
+    void setReaderSchema(DataFrameReader dfReader, String event) {
+        try {
+            StructType schema = SparkBatchSchemaUtil.getEventSparkDfSchema(event);
+            if (schema == null || schema.isEmpty()) {
+                return;
+            }
+            LOGGER.debug("Found Schema in data: {}", schema.toDDL());
+            dfReader.schema(schema);
+        }
+        catch (JsonProcessingException e) {
+            LOGGER.warn("Failed to create Spark Schema. Falling back to Schema inference! {}",e.getMessage());
+        }
+    }
+
     protected void uploadBatchFile(String destination) {
         Integer batchId = map_batchid.get(destination);
         final String data = map_data.get(destination);
@@ -99,16 +113,7 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
         DataFrameReader dfReader = spark.read();
         // Read DF with Schema if schema exists
         if (!jsonData.isEmpty()) {
-            try {
-                StructType schema = SparkBatchSchemaUtil.getSparkDfSchema(Iterables.getLast(jsonData));
-                if (schema != null && !schema.isEmpty()) {
-                    dfReader.schema(schema);
-                }
-            }
-            catch (JsonProcessingException e) {
-                LOGGER.warn(e.getMessage());
-                LOGGER.warn("Failed to create Spark Schema. Falling back to Schema inference");
-            }
+            this.setReaderSchema(dfReader, Iterables.getLast(jsonData));
 
             Dataset<Row> df = dfReader.json(ds);
             if (removeSchema && Arrays.asList(df.columns()).contains("payload")) {

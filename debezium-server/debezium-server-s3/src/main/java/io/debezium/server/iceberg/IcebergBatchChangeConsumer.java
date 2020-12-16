@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.debezium.server.s3;
+package io.debezium.server.iceberg;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;

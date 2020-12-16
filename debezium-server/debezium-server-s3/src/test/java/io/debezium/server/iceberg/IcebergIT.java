@@ -3,12 +3,14 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.debezium.server.s3;
+package io.debezium.server.iceberg;
 
 import io.debezium.server.DebeziumServer;
 import io.debezium.server.TestDatabase;
 import io.debezium.server.events.ConnectorCompletedEvent;
 import io.debezium.server.events.ConnectorStartedEvent;
+import io.debezium.server.s3.ConfigSource;
+import io.debezium.server.s3.S3MinioServer;
 import io.debezium.util.Testing;
 import io.quarkus.test.junit.QuarkusTest;
 import org.awaitility.Awaitility;
@@ -16,7 +18,6 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.services.s3.S3Client;
 
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
@@ -29,11 +30,10 @@ import java.time.Duration;
  * @author Ismail Simsek
  */
 @QuarkusTest
-public class S3IT {
+public class IcebergIT {
 
     protected static final S3MinioServer s3server = new S3MinioServer();
     private static final int MESSAGE_COUNT = 4;
-    protected static S3Client s3client = null;
     protected static TestDatabase db;
 
     static {
@@ -57,9 +57,6 @@ public class S3IT {
     }
 
     void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
-        if (!sinkType.equals("s3")) {
-            return;
-        }
         db = new TestDatabase();
         db.start();
     }

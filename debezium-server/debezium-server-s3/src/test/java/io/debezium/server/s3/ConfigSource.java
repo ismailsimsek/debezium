@@ -13,18 +13,18 @@ import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 import io.debezium.server.TestConfigSource;
 import io.debezium.server.TestDatabase;
 
-public class S3TestConfigSource extends TestConfigSource {
+public class ConfigSource extends TestConfigSource {
 
     public static final String S3_REGION = "us-east-1";
     public static final String S3_BUCKET = "test-bucket";
 
     final Map<String, String> s3Test = new HashMap<>();
 
-    public S3TestConfigSource() {
+    public ConfigSource() {
         // s3 and common conf
         s3Test.put("debezium.sink.type", "s3");
         s3Test.put("debezium.sink.s3.region", S3_REGION);
-        s3Test.put("debezium.sink.s3.endpointoverride", "http://localhost:" + TestS3MinioServer.MINIO_DEFAULT_PORT_MAP);
+        s3Test.put("debezium.sink.s3.endpointoverride", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP);
         s3Test.put("debezium.sink.s3.bucket.name", "s3a://" + S3_BUCKET);
         // s3Test.put("debezium.sink.s3.bucket.name", S3_BUCKET);
         s3Test.put("debezium.sink.s3.objectkey.prefix", "debezium-server-");
@@ -47,10 +47,10 @@ public class S3TestConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.s3sparkbatch.spark.io.compression.codec", "snappy");
         s3Test.put("debezium.sink.s3sparkbatch.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
         // endpoint override or testing
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.access.key", TestS3MinioServer.MINIO_ACCESS_KEY);
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.secret.key", TestS3MinioServer.MINIO_SECRET_KEY);
+        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.access.key", S3MinioServer.MINIO_ACCESS_KEY);
+        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.secret.key", S3MinioServer.MINIO_SECRET_KEY);
         s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.path.style.access", "true");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:" + TestS3MinioServer.MINIO_DEFAULT_PORT_MAP) ; // minio specific setting
+        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP) ; // minio specific setting
         s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
         s3Test.put("debezium.sink.s3sparkbatch.org.apache.iceberg", "iceberg-spark3-runtime:0.10.0");
         s3Test.put("debezium.sink.s3sparkbatch.spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
