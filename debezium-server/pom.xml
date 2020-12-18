@@ -25,7 +25,7 @@
         <module>debezium-server-pulsar</module>
         <module>debezium-server-eventhubs</module>
         <module>debezium-server-dist</module>
-        <module>debezium-server-s3</module>
+        <module>debezium-server-batch</module>
     </modules>
 
     <dependencyManagement>
@@ -51,7 +51,7 @@
             </dependency>
             <dependency>
                 <groupId>io.debezium</groupId>
-                <artifactId>debezium-server-s3</artifactId>
+                <artifactId>debezium-server-batch</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
