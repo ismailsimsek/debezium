@@ -37,22 +37,17 @@ import io.debezium.server.batch.keymapper.ObjectKeyMapper;
  */
 public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
 
-    protected static final String PROP_PREFIX = "debezium.sink.s3.";
-    protected static final String PROP_REGION_NAME = PROP_PREFIX + "region";
+    protected static final String PROP_PREFIX = "debezium.sink.batch.";
     protected final File TEMPDIR = Files.createTempDir();
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractBatchRecordWriter.class);
     protected LocalDateTime batchTime = LocalDateTime.now();
-    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3batch.row.limit", Integer.class).orElse(500);
-    final String tags = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.object.tags", String.class).orElse("");
-    final String region = ConfigProvider.getConfig().getOptionalValue(PROP_REGION_NAME, String.class).orElse("eu-central-1");
-    final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.endpointoverride", String.class).orElse("false");
+    // @TODO check param naming!
+    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
     protected final ObjectKeyMapper objectKeyMapper;
     protected final DB cdcDb;
     protected final ConcurrentMap<String, String> map_data;
     protected final ConcurrentMap<String, Integer> map_batchid;
     final ScheduledExecutorService timerExecutor = Executors.newSingleThreadScheduledExecutor();
-    protected final String bucket = ConfigProvider.getConfig().getOptionalValue(PROP_PREFIX + "bucket.name", String.class).orElse("My-S3-Bucket");
-    protected final Boolean useInstanceProfile = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.credentials.useinstancecred", Boolean.class).orElse(false);
 
     public AbstractBatchRecordWriter(ObjectKeyMapper mapper) throws URISyntaxException {
         this.objectKeyMapper = mapper;
@@ -82,7 +77,7 @@ public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, Au
 
     // DISABLED! this can be achieved using poll.interval.ms and max.batch.size
     protected void setupTimer() {
-        final Integer timerBatchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.batch.time.limit", Integer.class).orElse(3600);
+        final Integer timerBatchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.time.limit", Integer.class).orElse(3600);
         LOGGER.info("Set Batch Time limit to {} Second", timerBatchLimit);
         Runnable timerTask = () -> {
             LOGGER.debug("Timer is up uploading batch data!");
@@ -160,7 +155,7 @@ public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, Au
                 LOGGER.info("All Batch Data Successfully Processed.");
             }
 
-            LOGGER.info("Closing S3 Batch Consumer({})", this.getClass().getName());
+            LOGGER.info("Closing Batch Consumer({})", this.getClass().getName());
             cdcDb.close();
         }
     }

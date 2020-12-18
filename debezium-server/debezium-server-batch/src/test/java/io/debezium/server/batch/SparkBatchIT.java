@@ -16,15 +16,6 @@ import java.util.List;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
-import io.debezium.server.batch.batchwriter.spark.SparkIcebergBatchRecordWriter;
-import io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper;
-import io.minio.errors.ErrorResponseException;
-import io.minio.errors.InsufficientDataException;
-import io.minio.errors.InternalException;
-import io.minio.errors.InvalidResponseException;
-import io.minio.errors.ServerException;
-import io.minio.errors.XmlParserException;
-import io.minio.messages.Item;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
@@ -36,9 +27,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.debezium.server.DebeziumServer;
 import io.debezium.server.TestDatabase;
+import io.debezium.server.batch.batchwriter.spark.SparkIcebergBatchRecordWriter;
+import io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper;
 import io.debezium.server.events.ConnectorCompletedEvent;
 import io.debezium.server.events.ConnectorStartedEvent;
 import io.debezium.util.Testing;
+import io.minio.errors.ErrorResponseException;
+import io.minio.errors.InsufficientDataException;
+import io.minio.errors.InternalException;
+import io.minio.errors.InvalidResponseException;
+import io.minio.errors.ServerException;
+import io.minio.errors.XmlParserException;
+import io.minio.messages.Item;
 import io.quarkus.test.junit.QuarkusTest;
 
 import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
@@ -50,7 +50,7 @@ import software.amazon.awssdk.services.s3.S3Client;
  * @author Ismail Simsek
  */
 @QuarkusTest
-public class S3SparkBatchIT {
+public class SparkBatchIT {
 
     private static final int MESSAGE_COUNT = 2;
     protected static S3Client s3client = null;
@@ -81,7 +81,7 @@ public class S3SparkBatchIT {
     String sinkType;
 
     void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
-        if (!sinkType.equals("s3sparkbatch")) {
+        if (!sinkType.equals("sparkbatch")) {
             return;
         }
         db = new TestDatabase();
@@ -102,9 +102,9 @@ public class S3SparkBatchIT {
     }
 
     @Test
-    public void testS3SparkBatch() throws Exception {
+    public void testSparkBatch() throws Exception {
         Testing.Print.enable();
-        Assertions.assertThat(sinkType.equals("s3sparkbatch"));
+        Assertions.assertThat(sinkType.equals("sparkbatch"));
 
         SparkIcebergBatchRecordWriter bw = new SparkIcebergBatchRecordWriter(new LakeTableObjectKeyMapper());
 

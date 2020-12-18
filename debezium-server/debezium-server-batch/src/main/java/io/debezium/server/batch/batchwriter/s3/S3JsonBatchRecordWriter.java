@@ -4,11 +4,13 @@
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
 
-package io.debezium.server.batch.batchwriter;
+package io.debezium.server.batch.batchwriter.s3;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 
+import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
+import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,12 +30,17 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
  *
  * @author Ismail Simsek
  */
-public class JsonBatchRecordWriter extends AbstractBatchRecordWriter {
-    protected static final Logger LOGGER = LoggerFactory.getLogger(JsonBatchRecordWriter.class);
+public class S3JsonBatchRecordWriter extends AbstractBatchRecordWriter {
+    protected static final Logger LOGGER = LoggerFactory.getLogger(S3JsonBatchRecordWriter.class);
+
+    final String region = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.region", String.class).orElse("eu-central-1");
+    final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.endpointoverride", String.class).orElse("false");
+    protected final String bucket = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.bucket.name", String.class).orElse("My-S3-Bucket");
+    protected final Boolean useInstanceProfile = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.credentials.useinstancecred", Boolean.class).orElse(false);
 
     private final S3Client s3Client;
 
-    public JsonBatchRecordWriter(ObjectKeyMapper mapper)
+    public S3JsonBatchRecordWriter(ObjectKeyMapper mapper)
             throws URISyntaxException {
         super(mapper);
 
@@ -66,7 +73,6 @@ public class JsonBatchRecordWriter extends AbstractBatchRecordWriter {
         final PutObjectRequest putRecord = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(s3File)
-                .tagging(tags)
                 .build();
         s3Client.putObject(putRecord, RequestBody.fromString(data));
         // increment batch id

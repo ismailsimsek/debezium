@@ -13,7 +13,7 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import io.debezium.engine.format.Json;
 
 public class LakeTableObjectKeyMapper implements ObjectKeyMapper {
-    final String objectKeyPrefix = ConfigProvider.getConfig().getValue("debezium.sink.s3.objectkey.prefix", String.class);
+    final String objectKeyPrefix = ConfigProvider.getConfig().getValue("debezium.sink.batch.objectkey.prefix", String.class);
     final String valueFormat = ConfigProvider.getConfig().getOptionalValue("debezium.format.value", String.class).orElse(Json.class.getSimpleName().toLowerCase());
 
     @Override

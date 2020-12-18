@@ -5,24 +5,26 @@
  */
 package io.debezium.server.iceberg;
 
-import io.debezium.server.DebeziumServer;
-import io.debezium.server.TestDatabase;
-import io.debezium.server.events.ConnectorCompletedEvent;
-import io.debezium.server.events.ConnectorStartedEvent;
-import io.debezium.server.batch.ConfigSource;
-import io.debezium.server.batch.S3MinioServer;
-import io.debezium.util.Testing;
-import io.quarkus.test.junit.QuarkusTest;
+import java.net.URISyntaxException;
+import java.time.Duration;
+
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
-import javax.enterprise.event.Observes;
-import javax.inject.Inject;
-import java.net.URISyntaxException;
-import java.time.Duration;
+import io.debezium.server.DebeziumServer;
+import io.debezium.server.TestDatabase;
+import io.debezium.server.batch.ConfigSource;
+import io.debezium.server.batch.S3MinioServer;
+import io.debezium.server.events.ConnectorCompletedEvent;
+import io.debezium.server.events.ConnectorStartedEvent;
+import io.debezium.util.Testing;
+import io.quarkus.test.junit.QuarkusTest;
 
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to s3.

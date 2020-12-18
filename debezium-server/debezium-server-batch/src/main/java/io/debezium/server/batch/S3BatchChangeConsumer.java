@@ -17,6 +17,7 @@ import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
@@ -29,11 +30,8 @@ import io.debezium.engine.DebeziumEngine;
 import io.debezium.engine.format.Json;
 import io.debezium.server.BaseChangeConsumer;
 import io.debezium.server.batch.batchwriter.BatchRecordWriter;
-import io.debezium.server.batch.batchwriter.JsonBatchRecordWriter;
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
+import io.debezium.server.batch.batchwriter.s3.S3JsonBatchRecordWriter;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
-
-import software.amazon.awssdk.services.s3.S3Client;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -45,16 +43,12 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class S3BatchChangeConsumer extends BaseChangeConsumer implements DebeziumEngine.ChangeConsumer<ChangeEvent<Object, Object>> {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(S3BatchChangeConsumer.class);
-    protected static final String PROP_PREFIX = "debezium.sink.s3.";
     final String valueFormat = ConfigProvider.getConfig().getOptionalValue("debezium.format.value", String.class).orElse(Json.class.getSimpleName().toLowerCase());
 
-    @Inject
-    Instance<ObjectKeyMapper> customObjectKeyMapper;
-
-    S3Client s3client;
-    // private final ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
     BatchRecordWriter batchWriter;
     ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
+    @Inject
+    Instance<ObjectKeyMapper> customObjectKeyMapper;
 
     @PreDestroy
     void close() {
@@ -63,12 +57,6 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
         }
         catch (Exception e) {
             LOGGER.warn("Exception while closing batchWriter:{} ", e.getMessage());
-        }
-        try {
-            s3client.close();
-        }
-        catch (Exception e) {
-            LOGGER.error("Exception while closing S3 client: ", e);
         }
     }
 
@@ -79,10 +67,11 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
             objectKeyMapper = customObjectKeyMapper.get();
         }
         LOGGER.info("Using '{}' object name mapper", objectKeyMapper);
+
         if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
             throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) value formats are {json,}!");
         }
-        batchWriter = new JsonBatchRecordWriter(objectKeyMapper);
+        batchWriter = new S3JsonBatchRecordWriter(objectKeyMapper);
     }
 
     @Override

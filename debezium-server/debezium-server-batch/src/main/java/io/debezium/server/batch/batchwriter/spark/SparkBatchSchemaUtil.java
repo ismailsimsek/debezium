@@ -6,10 +6,6 @@
 
 package io.debezium.server.batch.batchwriter.spark;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
@@ -18,6 +14,12 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.

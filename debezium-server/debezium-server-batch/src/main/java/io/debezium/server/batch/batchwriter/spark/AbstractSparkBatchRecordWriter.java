@@ -36,11 +36,12 @@ import io.debezium.server.batch.keymapper.ObjectKeyMapper;
  */
 abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter {
 
-    private static final String SPARK_PROP_PREFIX = "debezium.sink.s3sparkbatch.";
-    final Boolean removeSchema = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3sparkbatch.removeschema", Boolean.class).orElse(true);
-    protected String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3sparkbatch.saveformat", String.class).orElse("json");
-    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3sparkbatch.row.limit", Integer.class).orElse(500);
+    private static final String SPARK_PROP_PREFIX = "debezium.sink.sparkbatch.";
+    final Boolean removeSchema = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.removeschema", Boolean.class).orElse(true);
+    protected String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.saveformat", String.class).orElse("json");
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractSparkBatchRecordWriter.class);
+    // @TODO is this needed?
+    protected final String bucket = ConfigProvider.getConfig().getOptionalValue(PROP_PREFIX + "bucket.name", String.class).orElse("My-S3-Bucket");
 
     SparkSession spark;
 
@@ -63,15 +64,6 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
     }
 
     private void initSparkconf() {
-
-        if (useInstanceProfile) {
-            this.sparkconf.set("fs.s3a.aws.credentials.provider", "com.amazonaws.auth.InstanceProfileCredentialsProvider");
-            LOGGER.info("Setting Spark Conf '{}'='{}'", "fs.s3a.aws.credentials.provider", "com.amazonaws.auth.InstanceProfileCredentialsProvider");
-        }
-        else {
-            this.sparkconf.set("fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
-            LOGGER.info("Setting Spark Conf '{}'='{}'", "fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
-        }
 
         for (String name : ConfigProvider.getConfig().getPropertyNames()) {
             if (name.startsWith(SPARK_PROP_PREFIX)) {
@@ -98,7 +90,7 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
             dfReader.schema(schema);
         }
         catch (JsonProcessingException e) {
-            LOGGER.warn("Failed to create Spark Schema. Falling back to Schema inference! {}",e.getMessage());
+            LOGGER.warn("Failed to create Spark Schema. Falling back to Schema inference! {}", e.getMessage());
         }
     }
 

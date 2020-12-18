@@ -17,6 +17,7 @@ import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
 import javax.inject.Named;
 
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
@@ -29,35 +30,29 @@ import io.debezium.engine.DebeziumEngine;
 import io.debezium.engine.format.Json;
 import io.debezium.server.BaseChangeConsumer;
 import io.debezium.server.batch.batchwriter.BatchRecordWriter;
-import io.debezium.server.batch.batchwriter.JsonBatchRecordWriter;
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
+import io.debezium.server.batch.batchwriter.spark.SparkBatchRecordWriter;
+import io.debezium.server.batch.batchwriter.spark.SparkDeltaBatchRecordWriter;
+import io.debezium.server.batch.batchwriter.spark.SparkIcebergBatchRecordWriter;
+import io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
-
-import software.amazon.awssdk.services.s3.S3Client;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
  *
  * @author Ismail Simsek
  */
-@Named("icebergbatch")
+@Named("sparkbatch")
 @Dependent
-public class IcebergBatchChangeConsumer extends BaseChangeConsumer implements DebeziumEngine.ChangeConsumer<ChangeEvent<Object, Object>> {
+public class SparkBatchChangeConsumer extends BaseChangeConsumer implements DebeziumEngine.ChangeConsumer<ChangeEvent<Object, Object>> {
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(IcebergBatchChangeConsumer.class);
-    protected static final String PROP_PREFIX = "debezium.sink.icebergbatch.";
+    protected static final Logger LOGGER = LoggerFactory.getLogger(SparkBatchChangeConsumer.class);
     final String valueFormat = ConfigProvider.getConfig().getOptionalValue("debezium.format.value", String.class).orElse(Json.class.getSimpleName().toLowerCase());
+    final String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.saveformat", String.class).orElse("json");
 
-    @Inject
-    Instance<ObjectKeyMapper> customObjectKeyMapper;
-
-    S3Client s3client;
-    // private final ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
     BatchRecordWriter batchWriter;
     ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
-    // @TODO init iceberg catalog. hadoop config!
-    // @TODO create table if not exists
-    // @TODO collect rows and commit as batches 40000 row.
+    @Inject
+    Instance<ObjectKeyMapper> customObjectKeyMapper;
 
     @PreDestroy
     void close() {
@@ -66,12 +61,6 @@ public class IcebergBatchChangeConsumer extends BaseChangeConsumer implements De
         }
         catch (Exception e) {
             LOGGER.warn("Exception while closing batchWriter:{} ", e.getMessage());
-        }
-        try {
-            s3client.close();
-        }
-        catch (Exception e) {
-            LOGGER.error("Exception while closing S3 client: ", e);
         }
     }
 
@@ -82,10 +71,23 @@ public class IcebergBatchChangeConsumer extends BaseChangeConsumer implements De
             objectKeyMapper = customObjectKeyMapper.get();
         }
         LOGGER.info("Using '{}' object name mapper", objectKeyMapper);
+
         if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
             throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) value formats are {json,}!");
         }
-        batchWriter = new JsonBatchRecordWriter(objectKeyMapper);
+
+        if (saveFormat.equals("iceberg")) {
+            objectKeyMapper = new LakeTableObjectKeyMapper();
+            batchWriter = new SparkIcebergBatchRecordWriter(objectKeyMapper);
+        }
+        else if (saveFormat.equals("delta")) {
+            objectKeyMapper = new LakeTableObjectKeyMapper();
+            batchWriter = new SparkDeltaBatchRecordWriter(objectKeyMapper);
+        }
+        else {
+            batchWriter = new SparkBatchRecordWriter(objectKeyMapper);
+        }
+
     }
 
     @Override

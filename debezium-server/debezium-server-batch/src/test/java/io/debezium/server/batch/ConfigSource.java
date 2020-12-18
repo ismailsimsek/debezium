@@ -21,57 +21,56 @@ public class ConfigSource extends TestConfigSource {
     final Map<String, String> s3Test = new HashMap<>();
 
     public ConfigSource() {
-        // s3 and common conf
+        // common conf
         s3Test.put("debezium.sink.type", "s3");
-        s3Test.put("debezium.sink.s3.region", S3_REGION);
-        s3Test.put("debezium.sink.s3.endpointoverride", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP);
-        s3Test.put("debezium.sink.s3.bucket.name", "s3a://" + S3_BUCKET);
-        // s3Test.put("debezium.sink.s3.bucket.name", S3_BUCKET);
-        s3Test.put("debezium.sink.s3.objectkey.prefix", "debezium-server-");
-        s3Test.put("debezium.sink.s3.credentials.useinstancecred", "false");
-        // s3batch conf
-        s3Test.put("debezium.sink.s3batch.row.limit", "2");
-        // s3sparkbatch conf
-        s3Test.put("debezium.sink.s3sparkbatch.row.limit", "2");
-        // s3sparkbatch sink conf
-        s3Test.put("debezium.sink.s3sparkbatch.removeschema", "true");
-        s3Test.put("debezium.sink.s3sparkbatch.saveformat", "iceberg");
-        // spark conf
-        s3Test.put("debezium.sink.s3sparkbatch.spark.ui.enabled", "false");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.sql.session.timeZone", "UTC");
-        s3Test.put("debezium.sink.s3sparkbatch.user.timezone", "UTC");
-        s3Test.put("debezium.sink.s3sparkbatch.com.amazonaws.services.s3.enableV4", "true");
-        s3Test.put("debezium.sink.s3sparkbatch.com.amazonaws.services.s3a.enableV4", "true");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.executor.extraJavaOptions", "-Dcom.amazonaws.services.s3.enableV4=true");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.driver.extraJavaOptions", "-Dcom.amazonaws.services.s3.enableV4=true");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.io.compression.codec", "snappy");
-        s3Test.put("debezium.sink.s3sparkbatch.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
-        // endpoint override or testing
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.access.key", S3MinioServer.MINIO_ACCESS_KEY);
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.secret.key", S3MinioServer.MINIO_SECRET_KEY);
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.path.style.access", "true");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP) ; // minio specific setting
-        s3Test.put("debezium.sink.s3sparkbatch.spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
-        s3Test.put("debezium.sink.s3sparkbatch.org.apache.iceberg", "iceberg-spark3-runtime:0.10.0");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.sql.catalog.spark_catalog.type", "hadoop");
-        s3Test.put("debezium.sink.s3sparkbatch.spark.sql.catalog.spark_catalog.warehouse", "s3a://" + S3_BUCKET + "/spark3_iceberg_catalog");
+        s3Test.put("debezium.sink.batch.objectkey.prefix", "debezium-cdc-");
+        s3Test.put("debezium.sink.batch.row.limit", "2");
+        s3Test.put("debezium.sink.batch.time.limit", "3600");
 
-        s3Test.put("debezium.sink.s3sparkbatch.spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore");
+        // S3, s3batch sink
+        s3Test.put("debezium.sink.batch.s3.region", S3_REGION);
+        s3Test.put("debezium.sink.batch.s3.endpointoverride", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP);
+        s3Test.put("debezium.sink.batch.s3.bucket.name", "s3a://" + S3_BUCKET);
+        s3Test.put("debezium.sink.batch.s3.credentials.useinstancecred", "false");
+
+        // sparkbatch sink conf
+        s3Test.put("debezium.sink.sparkbatch.removeschema", "true");
+        s3Test.put("debezium.sink.sparkbatch.saveformat", "iceberg");
+        // spark conf
+        s3Test.put("debezium.sink.sparkbatch.spark.ui.enabled", "false");
+        s3Test.put("debezium.sink.sparkbatch.spark.sql.session.timeZone", "UTC");
+        s3Test.put("debezium.sink.sparkbatch.user.timezone", "UTC");
+        s3Test.put("debezium.sink.sparkbatch.com.amazonaws.services.s3.enableV4", "true");
+        s3Test.put("debezium.sink.sparkbatch.com.amazonaws.services.s3a.enableV4", "true");
+        s3Test.put("debezium.sink.sparkbatch.spark.executor.extraJavaOptions", "-Dcom.amazonaws.services.s3.enableV4=true");
+        s3Test.put("debezium.sink.sparkbatch.spark.driver.extraJavaOptions", "-Dcom.amazonaws.services.s3.enableV4=true");
+        s3Test.put("debezium.sink.sparkbatch.spark.io.compression.codec", "snappy");
+        s3Test.put("debezium.sink.sparkbatch.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
+        // endpoint override or testing
+        s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.access.key", S3MinioServer.MINIO_ACCESS_KEY);
+        s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.secret.key", S3MinioServer.MINIO_SECRET_KEY);
+        s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.path.style.access", "true");
+        s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP); // minio specific setting
+        s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+        s3Test.put("debezium.sink.sparkbatch.org.apache.iceberg", "iceberg-spark3-runtime:0.10.0");
+        s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
+        s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.type", "hadoop");
+        s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.warehouse", "s3a://" + S3_BUCKET + "/spark3_iceberg_catalog");
+        // DEBEZIUM PROP
+        s3Test.put("debezium.sink.sparkbatch.spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore");
         // enable disable schema
         s3Test.put("debezium.format.value.schemas.enable", "true");
         // s3Test.put("debezium.format.value.converter", "io.debezium.converters.CloudEventsConverter");
         // s3Test.put("value.converter", "io.debezium.converters.CloudEventsConverter");
         // s3Test.put("debezium.format.value.converter.data.serializer.type" , "json");
         // s3Test.put("value.converter.data.serializer.type", "json");
-
         // debezium unwrap message
         s3Test.put("debezium.transforms", "unwrap");
         s3Test.put("debezium.transforms.unwrap.type", "io.debezium.transforms.ExtractNewRecordState");
         s3Test.put("debezium.transforms.unwrap.add.fields", "op,table,lsn,source.ts_ms");
         s3Test.put("debezium.transforms.unwrap.add.headers", "db");
         s3Test.put("debezium.transforms.unwrap.delete.handling.mode", "rewrite");
-        // debezium source conf
+        // DEBEZIUM SOURCE conf
         s3Test.put("debezium.source.connector.class", "io.debezium.connector.postgresql.PostgresConnector");
         s3Test.put("debezium.source." + StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG, OFFSET_STORE_PATH.toAbsolutePath().toString());
         s3Test.put("debezium.source.offset.flush.interval.ms", "0");

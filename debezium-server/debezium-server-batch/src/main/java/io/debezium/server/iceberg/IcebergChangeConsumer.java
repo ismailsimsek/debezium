@@ -3,24 +3,15 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.debezium.server.batch;
+package io.debezium.server.iceberg;
 
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.format.Json;
-import io.debezium.server.BaseChangeConsumer;
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
-import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.hadoop.HadoopTables;
-import org.apache.iceberg.types.Types;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import java.net.URISyntaxException;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -28,9 +19,21 @@ import javax.enterprise.context.Dependent;
 import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
 import javax.inject.Named;
-import java.net.URISyntaxException;
-import java.time.LocalDateTime;
-import java.util.List;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.hadoop.HadoopTables;
+import org.apache.iceberg.types.Types;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
+import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -59,11 +62,9 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
             optional(3, "event_value", Types.StringType.get()),
             optional(4, "event_value_format", Types.TimestampType.withZone()),
             optional(5, "event_key_format", Types.TimestampType.withZone()),
-            optional(6, "event_sink_timestamp", Types.TimestampType.withZone())
-    );
+            optional(6, "event_sink_timestamp", Types.TimestampType.withZone()));
     // debezium.format.value.schemas.enable
     // debezium.source.database.dbname
-
 
     @ConfigProperty(name = PROP_REGION_NAME, defaultValue = "eu-central-1")
     String region;
@@ -92,12 +93,12 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
     @PreDestroy
     void close() {
-        //        try {
-        //            s3client.close();
-        //        }
-        //        catch (Exception e) {
-        //            LOGGER.error("Exception while closing S3 client: ", e);
-        //        }
+        // try {
+        // s3client.close();
+        // }
+        // catch (Exception e) {
+        // LOGGER.error("Exception while closing S3 client: ", e);
+        // }
     }
 
     @Override

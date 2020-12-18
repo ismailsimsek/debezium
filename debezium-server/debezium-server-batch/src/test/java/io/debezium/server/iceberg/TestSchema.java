@@ -6,13 +6,16 @@
 
 package io.debezium.server.iceberg;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import io.debezium.server.batch.batchwriter.spark.SparkBatchSchemaUtil;
-import io.debezium.util.Testing;
-import org.apache.spark.sql.types.StructType;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+
+import io.debezium.server.batch.batchwriter.spark.SparkBatchSchemaUtil;
+import io.debezium.util.Testing;
 
 class TestSchema {
 
@@ -25,6 +28,7 @@ class TestSchema {
         assertNotNull(s);
         assertTrue(s.catalogString().contains("id:int,order_date:int,purchaser:int,quantity:int,product_id:int,__op:string"));
     }
+
     @Test
     public void testNestedSchema() throws JsonProcessingException {
         StructType s = SparkBatchSchemaUtil.getEventSparkDfSchema(serdeWithSchema);
