@@ -4,8 +4,8 @@
     <useClassPathOnly />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
     <option name="ALTERNATIVE_JRE_PATH" value="1.8" />
-    <option name="PACKAGE_NAME" value="io.debezium.server.s3" />
-    <option name="MAIN_CLASS_NAME" value="io.debezium.server.s3.S3SparkBatchIT" />
+    <option name="PACKAGE_NAME" value="io.debezium.server.batch" />
+    <option name="MAIN_CLASS_NAME" value="io.debezium.server.batch.S3SparkBatchIT" />
     <option name="METHOD_NAME" value="" />
     <option name="TEST_OBJECT" value="class" />
     <option name="VM_PARAMETERS" value="-ea -Ddebezium.sink.type=s3sparkbatch" />

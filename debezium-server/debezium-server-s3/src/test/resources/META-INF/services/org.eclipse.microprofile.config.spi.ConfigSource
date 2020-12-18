@@ -1,1 +1,1 @@
-io.debezium.server.s3.ConfigSource
+io.debezium.server.batch.ConfigSource
