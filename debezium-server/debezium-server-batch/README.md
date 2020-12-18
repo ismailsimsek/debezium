@@ -1,8 +1,9 @@
 
-### Consumers
+# Various Debezium Consumers
 
 
-**`s3` Consumer**
+
+## `s3` Consumer
 
 object names are mapped like 
 
@@ -18,11 +19,11 @@ debezium.sink.s3.credentials.useinstancecred = false
 debezium.sink.s3.objectkey.prefix = debezium-cdc-
 ```
 
-**`batch` Consumer**
+## `batch` Consumer
 
 all the batch consumers are only supporting json events! `debezium.format.value=json`
 
-**Common Batch Parameters**
+##### Common Batch Consumer Parameters
 
 ```
 debezium.sink.batch.row.limit = 2 # number of rows to triger data upload
@@ -32,9 +33,9 @@ io.debezium.server.batch.batchwriter.BatchRecordWriter = # one of {io.debezium.s
 io.debezium.server.batch.keymapper.ObjectKeyMapper = # one of {io.debezium.server.batch.keymapper.DefaultObjectKeyMapper, io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper, io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper}
 ```
 
-##### Batch Record Writers
+### Batch Record Writers
 
-**io.debezium.server.batch.batchwriter.S3JsonBatchRecordWriter**
+##### io.debezium.server.batch.batchwriter.S3JsonBatchRecordWriter
 periodically writes events as jsonlines file to s3
 Custom parameters
 ```
@@ -49,7 +50,7 @@ recommended object key mappers are
 - `io.debezium.server.batch.keymapper.DefaultObjectKeyMapper`
 - `io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper`
 
-**io.debezium.server.batch.batchwriter.SparkBatchRecordWriter**
+##### io.debezium.server.batch.batchwriter.SparkBatchRecordWriter
 
 ```
 debezium.sink.sparkbatch.saveformat = {json,avro,parquet}
@@ -63,7 +64,7 @@ the recommended object key mappers are
 - `io.debezium.server.batch.keymapper.DefaultObjectKeyMapper`
 - `io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper`
 
-**io.debezium.server.batch.batchwriter.SparkIcebergBatchRecordWriter**
+##### io.debezium.server.batch.batchwriter.SparkIcebergBatchRecordWriter
 
 ```
 debezium.sink.sparkbatch.saveformat = {json,avro,parquet}
@@ -76,6 +77,6 @@ io.debezium.server.batch.keymapper.ObjectKeyMapper = io.debezium.server.batch.ke
 the recommended object key mappers are
 - `io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper`
 
-**`iceberg` Consumer**
+## `iceberg` Consumer
 
 WIP

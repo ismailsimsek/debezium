@@ -72,7 +72,7 @@ public class IcebergIT {
     @Test
     public void testS3() throws Exception {
         Testing.Print.enable();
-        Assertions.assertThat(sinkType.equals("s3"));
+        Assertions.assertThat(sinkType.equals("iceberg"));
 
         s3server.start();
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {

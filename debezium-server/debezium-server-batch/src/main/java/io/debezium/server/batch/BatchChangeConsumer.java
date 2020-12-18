@@ -5,7 +5,25 @@
  */
 package io.debezium.server.batch;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.URISyntaxException;
+import java.util.List;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.enterprise.context.Dependent;
+import javax.enterprise.inject.Instance;
+import javax.inject.Inject;
+import javax.inject.Named;
+
+import org.apache.kafka.connect.json.JsonDeserializer;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.databind.JsonNode;
+
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.engine.format.Json;
@@ -14,21 +32,6 @@ import io.debezium.server.batch.batchwriter.BatchRecordWriter;
 import io.debezium.server.batch.batchwriter.spark.SparkBatchRecordWriter;
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
-import org.apache.kafka.connect.json.JsonDeserializer;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.enterprise.context.Dependent;
-import javax.enterprise.inject.Instance;
-import javax.inject.Inject;
-import javax.inject.Named;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.net.URISyntaxException;
-import java.util.List;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.

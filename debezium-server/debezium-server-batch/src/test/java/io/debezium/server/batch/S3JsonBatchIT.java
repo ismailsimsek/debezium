@@ -49,7 +49,7 @@ import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
  * @author Ismail Simsek
  */
 @QuarkusTest
-public class S3BatchIT {
+public class S3JsonBatchIT {
 
     private static final int MESSAGE_COUNT = 2;
     static ProfileCredentialsProvider pcred = ProfileCredentialsProvider.create("default");
@@ -79,7 +79,7 @@ public class S3BatchIT {
     String sinkType;
 
     void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
-        if (!sinkType.equals("s3batch")) {
+        if (!sinkType.equals("batch")) {
             return;
         }
         db = new TestDatabase();
@@ -102,7 +102,7 @@ public class S3BatchIT {
     @Test
     public void testS3Batch() throws Exception {
         Testing.Print.enable();
-        Assertions.assertThat(sinkType.equals("s3batch"));
+        Assertions.assertThat(sinkType.equals("batch"));
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds()))
                 .until(() -> s3server.getObjectList(ConfigSource.S3_BUCKET).toString().contains(ConfigSource.S3_BUCKET));

@@ -22,16 +22,20 @@ public class ConfigSource extends TestConfigSource {
 
     public ConfigSource() {
         // common conf
-        s3Test.put("debezium.sink.type", "s3");
+        s3Test.put("debezium.sink.type", "batch");
         s3Test.put("debezium.sink.batch.objectkey.prefix", "debezium-cdc-");
         s3Test.put("debezium.sink.batch.row.limit", "2");
         s3Test.put("debezium.sink.batch.time.limit", "3600");
 
-        // S3, s3batch sink
+        // s3batch sink
+        s3Test.put("io.debezium.server.batch.batchwriter.BatchRecordWriter", "io.debezium.server.batch.batchwriter.S3JsonBatchRecordWriter");
+        s3Test.put("io.debezium.server.batch.keymapper.ObjectKeyMapper", "io.debezium.server.batch.keymapper.DefaultObjectKeyMapper");
         s3Test.put("debezium.sink.batch.s3.region", S3_REGION);
         s3Test.put("debezium.sink.batch.s3.endpointoverride", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP);
         s3Test.put("debezium.sink.batch.s3.bucket.name", "s3a://" + S3_BUCKET);
         s3Test.put("debezium.sink.batch.s3.credentials.useinstancecred", "false");
+
+        // s3Test.put("io.debezium.server.batch.keymapper.ObjectKeyMapper", "io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper");
 
         // sparkbatch sink conf
         s3Test.put("debezium.sink.sparkbatch.removeschema", "true");
@@ -52,7 +56,6 @@ public class ConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.path.style.access", "true");
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP); // minio specific setting
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
-        s3Test.put("debezium.sink.sparkbatch.org.apache.iceberg", "iceberg-spark3-runtime:0.10.0");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.type", "hadoop");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.warehouse", "s3a://" + S3_BUCKET + "/spark3_iceberg_catalog");
