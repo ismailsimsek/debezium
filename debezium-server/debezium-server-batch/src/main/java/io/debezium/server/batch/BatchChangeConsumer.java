@@ -12,9 +12,6 @@ import io.debezium.engine.format.Json;
 import io.debezium.server.BaseChangeConsumer;
 import io.debezium.server.batch.batchwriter.BatchRecordWriter;
 import io.debezium.server.batch.batchwriter.spark.SparkBatchRecordWriter;
-import io.debezium.server.batch.batchwriter.spark.SparkDeltaBatchRecordWriter;
-import io.debezium.server.batch.batchwriter.spark.SparkIcebergBatchRecordWriter;
-import io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper;
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
 import org.apache.kafka.connect.json.JsonDeserializer;
@@ -38,13 +35,12 @@ import java.util.List;
  *
  * @author Ismail Simsek
  */
-@Named("sparkbatch")
+@Named("batch")
 @Dependent
-public class SparkBatchChangeConsumer extends BaseChangeConsumer implements DebeziumEngine.ChangeConsumer<ChangeEvent<Object, Object>> {
+public class BatchChangeConsumer extends BaseChangeConsumer implements DebeziumEngine.ChangeConsumer<ChangeEvent<Object, Object>> {
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(SparkBatchChangeConsumer.class);
+    protected static final Logger LOGGER = LoggerFactory.getLogger(BatchChangeConsumer.class);
     final String valueFormat = ConfigProvider.getConfig().getOptionalValue("debezium.format.value", String.class).orElse(Json.class.getSimpleName().toLowerCase());
-    final String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.saveformat", String.class).orElse("json");
 
     BatchRecordWriter batchWriter;
     ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();

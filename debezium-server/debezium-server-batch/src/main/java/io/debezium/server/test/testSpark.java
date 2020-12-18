@@ -4,7 +4,7 @@
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
 
-package io.debezium.server.maintest;
+package io.debezium.server.test;
 
 import java.util.Arrays;
 import java.util.List;
