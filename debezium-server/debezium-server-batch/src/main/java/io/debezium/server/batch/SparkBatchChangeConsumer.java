@@ -5,26 +5,7 @@
  */
 package io.debezium.server.batch;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.net.URISyntaxException;
-import java.util.List;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.enterprise.context.Dependent;
-import javax.enterprise.inject.Instance;
-import javax.inject.Inject;
-import javax.inject.Named;
-
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
-import org.apache.kafka.connect.json.JsonDeserializer;
-import org.eclipse.microprofile.config.ConfigProvider;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.databind.JsonNode;
-
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.engine.format.Json;
@@ -34,7 +15,23 @@ import io.debezium.server.batch.batchwriter.spark.SparkBatchRecordWriter;
 import io.debezium.server.batch.batchwriter.spark.SparkDeltaBatchRecordWriter;
 import io.debezium.server.batch.batchwriter.spark.SparkIcebergBatchRecordWriter;
 import io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper;
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
+import org.apache.kafka.connect.json.JsonDeserializer;
+import org.eclipse.microprofile.config.ConfigProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.enterprise.context.Dependent;
+import javax.enterprise.inject.Instance;
+import javax.inject.Inject;
+import javax.inject.Named;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.net.URISyntaxException;
+import java.util.List;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -53,6 +50,8 @@ public class SparkBatchChangeConsumer extends BaseChangeConsumer implements Debe
     ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
     @Inject
     Instance<ObjectKeyMapper> customObjectKeyMapper;
+    @Inject
+    Instance<BatchRecordWriter> customBatchWriter;
 
     @PreDestroy
     void close() {
@@ -72,22 +71,17 @@ public class SparkBatchChangeConsumer extends BaseChangeConsumer implements Debe
         }
         LOGGER.info("Using '{}' object name mapper", objectKeyMapper);
 
-        if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
-            throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) value formats are {json,}!");
-        }
-
-        if (saveFormat.equals("iceberg")) {
-            objectKeyMapper = new LakeTableObjectKeyMapper();
-            batchWriter = new SparkIcebergBatchRecordWriter(objectKeyMapper);
-        }
-        else if (saveFormat.equals("delta")) {
-            objectKeyMapper = new LakeTableObjectKeyMapper();
-            batchWriter = new SparkDeltaBatchRecordWriter(objectKeyMapper);
+        if (customBatchWriter.isResolvable()) {
+            batchWriter = customBatchWriter.get();
         }
         else {
             batchWriter = new SparkBatchRecordWriter(objectKeyMapper);
         }
+        LOGGER.info("Using '{}' object name mapper", objectKeyMapper);
 
+        if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
+            throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) value formats are {json,}!");
+        }
     }
 
     @Override

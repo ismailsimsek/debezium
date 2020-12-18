@@ -17,7 +17,6 @@ import javax.enterprise.inject.Instance;
 import javax.inject.Inject;
 import javax.inject.Named;
 
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
@@ -31,6 +30,7 @@ import io.debezium.engine.format.Json;
 import io.debezium.server.BaseChangeConsumer;
 import io.debezium.server.batch.batchwriter.BatchRecordWriter;
 import io.debezium.server.batch.batchwriter.s3.S3JsonBatchRecordWriter;
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
 
 /**
@@ -47,6 +47,7 @@ public class S3BatchChangeConsumer extends BaseChangeConsumer implements Debeziu
 
     BatchRecordWriter batchWriter;
     ObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
+
     @Inject
     Instance<ObjectKeyMapper> customObjectKeyMapper;
 

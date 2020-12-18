@@ -5,7 +5,6 @@
  */
 package io.debezium.server.iceberg;
 
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
@@ -33,6 +32,7 @@ import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.engine.format.Json;
 import io.debezium.server.BaseChangeConsumer;
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
 
 /**
