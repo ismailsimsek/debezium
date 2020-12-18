@@ -8,7 +8,6 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
         <module name="debezium-core" />
-        <module name="debezium-server-s3" />
         <module name="debezium-revapi" />
         <module name="debezium-server-eventhubs" />
         <module name="debezium-server-kinesis" />
@@ -26,6 +25,7 @@
         <module name="debezium-connector-sqlserver" />
         <module name="debezium-server-core" />
         <module name="debezium-connector-postgres" />
+        <module name="debezium-server-batch" />
         <module name="debezium-quarkus-outbox-integration-tests" />
         <module name="debezium-ddl-parser" />
         <module name="debezium-microbenchmark" />
@@ -100,13 +100,13 @@
       <module name="debezium-revapi" target="1.8" />
       <module name="debezium-scripting" target="1.8" />
       <module name="debezium-server" target="1.8" />
+      <module name="debezium-server-batch" target="1.8" />
       <module name="debezium-server-core" target="1.8" />
       <module name="debezium-server-dist" target="1.8" />
       <module name="debezium-server-eventhubs" target="1.8" />
       <module name="debezium-server-kinesis" target="1.8" />
       <module name="debezium-server-pubsub" target="1.8" />
       <module name="debezium-server-pulsar" target="1.8" />
-      <module name="debezium-server-s3" target="1.8" />
       <module name="debezium-testing" target="1.8" />
       <module name="debezium-testing-openshift" target="1.8" />
       <module name="debezium-testing-testcontainers" target="1.8" />
@@ -131,13 +131,13 @@
       <module name="debezium-quarkus-outbox-integration-tests" options="-Xlint:unchecked" />
       <module name="debezium-revapi" options="-Xlint:unchecked" />
       <module name="debezium-scripting" options="-Xlint:unchecked" />
+      <module name="debezium-server-batch" options="-Xlint:unchecked" />
       <module name="debezium-server-core" options="-Xlint:unchecked" />
       <module name="debezium-server-dist" options="-Xlint:unchecked" />
       <module name="debezium-server-eventhubs" options="-Xlint:unchecked" />
       <module name="debezium-server-kinesis" options="-Xlint:unchecked" />
       <module name="debezium-server-pubsub" options="-Xlint:unchecked" />
       <module name="debezium-server-pulsar" options="-Xlint:unchecked" />
-      <module name="debezium-server-s3" options="-Xlint:unchecked" />
       <module name="debezium-testing-openshift" options="-Xlint:unchecked" />
       <module name="debezium-testing-testcontainers" options="-Xlint:unchecked" />
     </option>

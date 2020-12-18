@@ -22,13 +22,13 @@
       <module fileurl="file://$PROJECT_DIR$/support/revapi/debezium-revapi.iml" filepath="$PROJECT_DIR$/support/revapi/debezium-revapi.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-scripting/debezium-scripting.iml" filepath="$PROJECT_DIR$/debezium-scripting/debezium-scripting.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server.iml" />
+      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-batch/debezium-server-batch.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-batch/debezium-server-batch.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-core/debezium-server-core.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-core/debezium-server-core.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-dist/debezium-server-dist.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-dist/debezium-server-dist.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-eventhubs/debezium-server-eventhubs.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-eventhubs/debezium-server-eventhubs.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-kinesis/debezium-server-kinesis.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-kinesis/debezium-server-kinesis.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-pubsub/debezium-server-pubsub.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-pubsub/debezium-server-pubsub.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-pulsar/debezium-server-pulsar.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-pulsar/debezium-server-pulsar.iml" />
-      <module fileurl="file://$PROJECT_DIR$/debezium-server/debezium-server-s3/debezium-server-s3.iml" filepath="$PROJECT_DIR$/debezium-server/debezium-server-s3/debezium-server-s3.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-testing/debezium-testing.iml" filepath="$PROJECT_DIR$/debezium-testing/debezium-testing.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-testing/debezium-testing-openshift/debezium-testing-openshift.iml" filepath="$PROJECT_DIR$/debezium-testing/debezium-testing-openshift/debezium-testing-openshift.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-testing/debezium-testing-testcontainers/debezium-testing-testcontainers.iml" filepath="$PROJECT_DIR$/debezium-testing/debezium-testing-testcontainers/debezium-testing-testcontainers.iml" />

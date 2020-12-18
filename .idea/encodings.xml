@@ -26,6 +26,8 @@
     <file url="file://$PROJECT_DIR$/debezium-quarkus-outbox/runtime/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-scripting/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-scripting/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-batch/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-batch/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-core/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-core/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-dist/src/main/resources" charset="UTF-8" />
@@ -37,8 +39,6 @@
     <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-pubsub/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-pulsar/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-pulsar/src/main/resources" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-s3/src/main/java" charset="UTF-8" />
-    <file url="file://$PROJECT_DIR$/debezium-server/debezium-server-s3/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-testing/debezium-testing-openshift/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/debezium-testing/debezium-testing-testcontainers/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/support/checkstyle/src/main/java" charset="UTF-8" />
