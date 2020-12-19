@@ -37,7 +37,6 @@ import io.debezium.server.batch.keymapper.ObjectKeyMapper;
  */
 public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
 
-    protected static final String PROP_PREFIX = "debezium.sink.batch.";
     protected final File TEMPDIR = Files.createTempDir();
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractBatchRecordWriter.class);
     protected LocalDateTime batchTime = LocalDateTime.now();

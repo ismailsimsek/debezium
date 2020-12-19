@@ -104,6 +104,7 @@ public class S3JsonBatchRecordWriterIT {
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
             Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
+            s3server.listFiles();
             return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
 

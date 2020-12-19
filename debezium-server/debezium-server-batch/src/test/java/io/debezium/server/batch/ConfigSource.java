@@ -24,8 +24,10 @@ public class ConfigSource extends TestConfigSource {
         // common conf
         s3Test.put("debezium.sink.type", "batch");
         s3Test.put("debezium.sink.batch.objectkey.prefix", "debezium-cdc-");
-        s3Test.put("debezium.sink.batch.objectkey.mapper", "dailypartitioned");
-        s3Test.put("debezium.sink.batch.batchwriter", "s3json");
+        //s3Test.put("debezium.sink.batch.objectkey.mapper", "dailypartitioned");
+        //s3Test.put("debezium.sink.batch.batchwriter", "s3json");
+        s3Test.put("debezium.sink.batch.objectkey.mapper", "table");
+        s3Test.put("debezium.sink.batch.batchwriter", "iceberg");
         s3Test.put("debezium.sink.batch.row.limit", "2");
         s3Test.put("debezium.sink.batch.time.limit", "3600");
 
@@ -38,6 +40,8 @@ public class ConfigSource extends TestConfigSource {
         // sparkbatch sink conf
         s3Test.put("debezium.sink.sparkbatch.removeschema", "true");
         s3Test.put("debezium.sink.sparkbatch.saveformat", "parquet");
+        s3Test.put("debezium.sink.sparkbatch.bucket.name", "s3a://" + S3_BUCKET);
+
         // spark conf
         s3Test.put("debezium.sink.sparkbatch.spark.ui.enabled", "false");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.session.timeZone", "UTC");
