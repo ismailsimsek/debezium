@@ -12,7 +12,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
+import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.FixedHostPortGenericContainer;
@@ -34,7 +36,7 @@ import io.minio.messages.Item;
 
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
-public class S3MinioServer {
+public class S3MinioServer implements QuarkusTestResourceLifecycleManager {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(S3MinioServer.class);
     static final int MINIO_DEFAULT_PORT = 9000;
@@ -51,11 +53,10 @@ public class S3MinioServer {
         MINIO_SECRET_KEY = pcred.resolveCredentials().secretAccessKey();
     }
 
-    public MinioClient client;
+    public static MinioClient client;
     private GenericContainer container = null;
 
-    public void start() throws NoSuchAlgorithmException, KeyManagementException, ServerException, InsufficientDataException, InternalException, InvalidResponseException,
-            InvalidKeyException, XmlParserException, ErrorResponseException, IOException {
+    public Map<String, String> start() {
 
         this.container = new FixedHostPortGenericContainer(DEFAULT_IMAGE)
                 .withFixedExposedPort(MINIO_DEFAULT_PORT_MAP, MINIO_DEFAULT_PORT)
@@ -73,24 +74,23 @@ public class S3MinioServer {
                 .endpoint("http://" + container.getHost() + ":" + container.getMappedPort(MINIO_DEFAULT_PORT))
                 .credentials(MINIO_ACCESS_KEY, MINIO_SECRET_KEY)
                 .build();
-        client.ignoreCertCheck();
-        client.makeBucket(MakeBucketArgs.builder()
-                .region(ConfigSource.S3_REGION)
-                .bucket(ConfigSource.S3_BUCKET)
-                .build());
-
-        LOGGER.info("Minio Started!");
-    }
-
-    public void stop() {
         try {
-            if (container != null) {
-                container.stop();
-            }
+            client.ignoreCertCheck();
+            client.makeBucket(MakeBucketArgs.builder()
+                    .region(ConfigSource.S3_REGION)
+                    .bucket(ConfigSource.S3_BUCKET)
+                    .build());
         }
         catch (Exception e) {
-            // ignored
+            e.printStackTrace();
         }
+        LOGGER.info("Minio Started!");
+        return null;
+    }
+
+    @Override
+    public void stop() {
+        container.stop();
     }
 
     public String getContainerIpAddress() {
@@ -114,11 +114,11 @@ public class S3MinioServer {
         }
     }
 
-    public void listFiles() {
+    public static void listFiles() {
         listFiles(null);
     }
 
-    public void listFiles(String message) {
+    public static void listFiles(String message) {
         LOGGER.info("-----------------------------------------------------------------");
         if (message != null) {
             LOGGER.info("{}", message);
@@ -141,7 +141,7 @@ public class S3MinioServer {
 
     }
 
-    public List<Item> getObjectList(String bucketName) {
+    public static List<Item> getObjectList(String bucketName) {
         List<Item> objects = new ArrayList<Item>();
 
         try {

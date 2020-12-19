@@ -11,6 +11,7 @@ import java.time.Duration;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
+import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
@@ -32,12 +33,12 @@ import software.amazon.awssdk.services.s3.S3Client;
  * @author Ismail Simsek
  */
 @QuarkusTest
+@QuarkusTestResource(S3MinioServer.class)
+@QuarkusTestResource(io.debezium.server.batch.TestDatabase.class)
 public class S3IT {
 
-    protected static final S3MinioServer s3server = new S3MinioServer();
     private static final int MESSAGE_COUNT = 4;
     protected static S3Client s3client = null;
-    protected static TestDatabase db;
 
     static {
         Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
@@ -49,22 +50,10 @@ public class S3IT {
     @ConfigProperty(name = "debezium.sink.type")
     String sinkType;
 
-    @AfterAll
-    static void stop() {
-        if (db != null) {
-            db.stop();
-        }
-        if (s3server != null) {
-            s3server.stop();
-        }
-    }
-
     void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
         if (!sinkType.equals("s3")) {
             return;
         }
-        db = new TestDatabase();
-        db.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
@@ -77,10 +66,8 @@ public class S3IT {
     public void testS3() throws Exception {
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("s3"));
-
-        s3server.start();
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
+            return S3MinioServer.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
     }
 }

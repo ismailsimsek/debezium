@@ -15,6 +15,7 @@ import java.time.Duration;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
+import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
@@ -41,10 +42,10 @@ import io.quarkus.test.junit.QuarkusTest;
  * @author Ismail Simsek
  */
 @QuarkusTest
+@QuarkusTestResource(S3MinioServer.class)
+@QuarkusTestResource(io.debezium.server.batch.TestDatabase.class)
 public class SparkIcebergBatchRecordWriterIT {
 
-    protected static final S3MinioServer s3server = new S3MinioServer();
-    protected static TestDatabase db = null;
     @Inject
     DebeziumServer server;
     @ConfigProperty(name = "debezium.sink.type")
@@ -56,27 +57,10 @@ public class SparkIcebergBatchRecordWriterIT {
         Testing.Files.createTestingFile(ConfigSource.OFFSET_STORE_PATH);
     }
 
-    @AfterAll
-    static void stop() {
-        if (db != null) {
-            db.stop();
-        }
-        s3server.stop();
-    }
-
-    @BeforeAll
-    static void setUpS3()
-            throws IOException, InvalidKeyException, NoSuchAlgorithmException, XmlParserException, InsufficientDataException, ServerException,
-            InternalException, InvalidResponseException, ErrorResponseException, KeyManagementException {
-        s3server.start();
-    }
-
     void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
         if (!sinkType.equals("batch")) {
             return;
         }
-        db = new TestDatabase();
-        // db.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
@@ -93,7 +77,7 @@ public class SparkIcebergBatchRecordWriterIT {
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
             // Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
             // s3server.listFiles();
-            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= 16;
+            return S3MinioServer.getObjectList(ConfigSource.S3_BUCKET).size() >= 16;
         });
         //
         // SparkIcebergBatchRecordWriter bw = new SparkIcebergBatchRecordWriter(new LakeTableObjectKeyMapper());
@@ -118,6 +102,6 @@ public class SparkIcebergBatchRecordWriterIT {
         // return false;
         // });
         //
-        s3server.listFiles();
+        S3MinioServer.listFiles();
     }
 }

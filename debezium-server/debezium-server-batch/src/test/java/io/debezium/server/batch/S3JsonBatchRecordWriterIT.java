@@ -16,6 +16,7 @@ import java.util.List;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
+import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
@@ -47,25 +48,15 @@ import io.quarkus.test.junit.QuarkusTest;
  * @author Ismail Simsek
  */
 @QuarkusTest
+@QuarkusTestResource(S3MinioServer.class)
+@QuarkusTestResource(io.debezium.server.batch.TestDatabase.class)
 public class S3JsonBatchRecordWriterIT {
 
     private static final int MESSAGE_COUNT = 2;
-    protected static final S3MinioServer s3server = new S3MinioServer();
-
-    protected static TestDatabase db = null;
-
     {
         // Testing.Debug.enable();
         Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
         Testing.Files.createTestingFile(ConfigSource.OFFSET_STORE_PATH);
-    }
-
-    @AfterAll
-    static void stop() {
-        if (db != null) {
-            db.stop();
-        }
-        s3server.stop();
     }
 
     @Inject
@@ -77,8 +68,6 @@ public class S3JsonBatchRecordWriterIT {
         if (!sinkType.equals("batch")) {
             return;
         }
-        db = new TestDatabase();
-        // db.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
@@ -87,22 +76,15 @@ public class S3JsonBatchRecordWriterIT {
         }
     }
 
-    @BeforeAll
-    static void setUpS3()
-            throws IOException, InvalidKeyException, NoSuchAlgorithmException, XmlParserException, InsufficientDataException, ServerException,
-            InternalException, InvalidResponseException, ErrorResponseException, KeyManagementException {
-        s3server.start();
-    }
-
     @Test
     public void testS3Batch() throws Exception {
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("batch"));
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
-            s3server.listFiles();
-            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
+            Testing.printError(S3MinioServer.getObjectList(ConfigSource.S3_BUCKET));
+            S3MinioServer.listFiles();
+            return S3MinioServer.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
 
         S3JsonBatchRecordWriter bw = new S3JsonBatchRecordWriter(new TimeBasedDailyObjectKeyMapper());
@@ -116,7 +98,7 @@ public class S3JsonBatchRecordWriterIT {
         bw.close();
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            List<Item> objects = s3server.getObjectList(ConfigSource.S3_BUCKET);
+            List<Item> objects = S3MinioServer.getObjectList(ConfigSource.S3_BUCKET);
             // we expect to see 2 batch files {0,1}
             for (Item o : objects) {
                 if (o.toString().contains("table1") && o.toString().contains("-1.parquet")) {
@@ -127,6 +109,6 @@ public class S3JsonBatchRecordWriterIT {
             return false;
         });
 
-        s3server.listFiles();
+        S3MinioServer.listFiles();
     }
 }

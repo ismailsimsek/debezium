@@ -15,6 +15,7 @@ import java.time.Duration;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
+import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
@@ -23,7 +24,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import io.debezium.server.DebeziumServer;
-import io.debezium.server.TestDatabase;
+import io.debezium.server.batch.TestDatabase;
 import io.debezium.server.batch.ConfigSource;
 import io.debezium.server.batch.S3MinioServer;
 import io.debezium.server.events.ConnectorCompletedEvent;
@@ -43,36 +44,18 @@ import io.quarkus.test.junit.QuarkusTest;
  * @author Ismail Simsek
  */
 @QuarkusTest
+@QuarkusTestResource(S3MinioServer.class)
+@QuarkusTestResource(TestDatabase.class)
 public class IcebergEventsIT {
-
-    protected static final S3MinioServer s3server = new S3MinioServer();
-    protected static TestDatabase db = new TestDatabase();
-
-    @Inject
-    DebeziumServer server;
     @ConfigProperty(name = "debezium.sink.type")
     String sinkType;
+    @Inject
+    DebeziumServer server;
 
     {
         // Testing.Debug.enable();
         Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
         Testing.Files.createTestingFile(ConfigSource.OFFSET_STORE_PATH);
-    }
-
-    @AfterAll
-    static void stop() {
-        db.stop();
-        s3server.stop();
-    }
-
-    void setupDependencies(@Observes ConnectorStartedEvent event)
-            throws URISyntaxException, IOException, InvalidKeyException, NoSuchAlgorithmException, XmlParserException, InsufficientDataException, ServerException,
-            InternalException, InvalidResponseException, ErrorResponseException, KeyManagementException {
-        if (!sinkType.equals("icebergevents")) {
-            return;
-        }
-        db.start();
-        s3server.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
@@ -89,8 +72,8 @@ public class IcebergEventsIT {
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
             // Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
             // s3server.listFiles();
-            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= 16;
+            return S3MinioServer.getObjectList(ConfigSource.S3_BUCKET).size() >= 9;
         });
-        s3server.listFiles();
+        //s3server.listFiles();
     }
 }

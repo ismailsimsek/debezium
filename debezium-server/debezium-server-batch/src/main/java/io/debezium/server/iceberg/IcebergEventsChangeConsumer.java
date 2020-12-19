@@ -121,20 +121,7 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         if (warehouseLocation == null || warehouseLocation.trim().isEmpty()) {
             warehouseLocation = defaultFs + "/iceberg/warehouse";
         }
-    }
 
-    @PreDestroy
-    void close() {
-        // try {
-        // s3client.close();
-        // }
-        // catch (Exception e) {
-        // LOGGER.error("Exception while closing S3 client: ", e);
-        // }
-    }
-
-    public void init(){
-        if (icebergCatalog == null) {
         LOGGER.error("creating ctalog");
         icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
         LOGGER.error("created ctalog");
@@ -148,13 +135,21 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         // if (catalogImpl != null) {
         // icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
         // }
-        }
     }
+
+//    @PreDestroy
+//    void close() {
+//        // try {
+//        // s3client.close();
+//        // }
+//        // catch (Exception e) {
+//        // LOGGER.error("Exception while closing S3 client: ", e);
+//        // }
+//    }
 
     @Override
     public void handleBatch(List<ChangeEvent<Object, Object>> records, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
-        init();
         LocalDateTime batchTime = LocalDateTime.now();
         ArrayList<Record> icebergRecords = Lists.newArrayList();
         GenericRecord icebergRecord = GenericRecord.create(TABLE_SCHEMA);
@@ -166,12 +161,12 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
             LOGGER.debug("dest:{}", record.destination());
             Map<String, Object> var1 = Maps.newHashMapWithExpectedSize(TABLE_SCHEMA.columns().size());
             var1.put("event_destination", record.destination());
-            var1.put("event_key", getBytes(record.key()));
+            var1.put("event_key", getString(record.key()));
             var1.put("event_key_value", null); // @TODO extract key value!
-            var1.put("event_value", getBytes(record.value()));
+            var1.put("event_value", getString(record.value()));
             var1.put("event_value_format", valueFormat);
             var1.put("event_key_format", keyFormat);
-            var1.put("event_sink_timestamp", LocalDateTime.now());
+            var1.put("event_sink_timestamp", LocalDateTime.now().atOffset(ZoneOffset.UTC));
             // @TODO add schema enabled flag! key value!
             // @TODO add flattened flag SMT unwrap!
             icebergRecords.add(icebergRecord.copy(var1));
@@ -191,7 +186,7 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     }
 
     private void commitBatch(ArrayList<Record> icebergRecords, LocalDateTime batchTime, int batchId) throws InterruptedException {
-        final String fileName = UUID.randomUUID() + "-" + batchTime.toEpochSecond(ZoneOffset.UTC) + "-" + batchId;
+        final String fileName = UUID.randomUUID() + "-" + batchTime.toEpochSecond(ZoneOffset.UTC) + "-" + batchId + "."+ FileFormat.PARQUET.toString().toLowerCase();
         OutputFile out = eventTable.io().newOutputFile(eventTable.locationProvider().newDataLocation(fileName));
 
         FileAppender<Record> writer = null;
