@@ -7,7 +7,6 @@ package io.debezium.server.batch;
 
 import java.io.IOException;
 import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -36,9 +35,9 @@ import io.minio.messages.Item;
 
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
-public class S3MinioServer implements QuarkusTestResourceLifecycleManager {
+public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(S3MinioServer.class);
+    protected static final Logger LOGGER = LoggerFactory.getLogger(TestS3Minio.class);
     static final int MINIO_DEFAULT_PORT = 9000;
     static final int MINIO_DEFAULT_PORT_MAP = 9000;
     static final String DEFAULT_IMAGE = "minio/minio:latest";

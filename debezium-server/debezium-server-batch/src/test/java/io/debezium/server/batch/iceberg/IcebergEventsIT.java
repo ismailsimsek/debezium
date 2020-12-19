@@ -5,11 +5,6 @@
  */
 package io.debezium.server.batch.iceberg;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 
 import javax.enterprise.event.Observes;
@@ -19,23 +14,14 @@ import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import io.debezium.server.DebeziumServer;
 import io.debezium.server.batch.TestDatabase;
 import io.debezium.server.batch.ConfigSource;
-import io.debezium.server.batch.S3MinioServer;
+import io.debezium.server.batch.TestS3Minio;
 import io.debezium.server.events.ConnectorCompletedEvent;
-import io.debezium.server.events.ConnectorStartedEvent;
 import io.debezium.util.Testing;
-import io.minio.errors.ErrorResponseException;
-import io.minio.errors.InsufficientDataException;
-import io.minio.errors.InternalException;
-import io.minio.errors.InvalidResponseException;
-import io.minio.errors.ServerException;
-import io.minio.errors.XmlParserException;
 import io.quarkus.test.junit.QuarkusTest;
 
 /**
@@ -44,7 +30,7 @@ import io.quarkus.test.junit.QuarkusTest;
  * @author Ismail Simsek
  */
 @QuarkusTest
-@QuarkusTestResource(S3MinioServer.class)
+@QuarkusTestResource(TestS3Minio.class)
 @QuarkusTestResource(TestDatabase.class)
 public class IcebergEventsIT {
     @ConfigProperty(name = "debezium.sink.type")
@@ -72,7 +58,7 @@ public class IcebergEventsIT {
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
             // Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
             // s3server.listFiles();
-            return S3MinioServer.getObjectList(ConfigSource.S3_BUCKET).size() >= 9;
+            return TestS3Minio.getObjectList(ConfigSource.S3_BUCKET).size() >= 9;
         });
         //s3server.listFiles();
     }

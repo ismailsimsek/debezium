@@ -35,7 +35,7 @@ import io.quarkus.test.junit.QuarkusTest;
  * @author Ismail Simsek
  */
 @QuarkusTest
-@QuarkusTestResource(S3MinioServer.class)
+@QuarkusTestResource(TestS3Minio.class)
 @QuarkusTestResource(io.debezium.server.batch.TestDatabase.class)
 public class S3JsonBatchRecordWriterIT {
 
@@ -69,9 +69,9 @@ public class S3JsonBatchRecordWriterIT {
         Assertions.assertThat(sinkType.equals("batch"));
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            Testing.printError(S3MinioServer.getObjectList(ConfigSource.S3_BUCKET));
-            S3MinioServer.listFiles();
-            return S3MinioServer.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
+            Testing.printError(TestS3Minio.getObjectList(ConfigSource.S3_BUCKET));
+            TestS3Minio.listFiles();
+            return TestS3Minio.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
 
         S3JsonBatchRecordWriter bw = new S3JsonBatchRecordWriter(new TimeBasedDailyObjectKeyMapper());
@@ -85,7 +85,7 @@ public class S3JsonBatchRecordWriterIT {
         bw.close();
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            List<Item> objects = S3MinioServer.getObjectList(ConfigSource.S3_BUCKET);
+            List<Item> objects = TestS3Minio.getObjectList(ConfigSource.S3_BUCKET);
             // we expect to see 2 batch files {0,1}
             for (Item o : objects) {
                 if (o.toString().contains("table1") && o.toString().contains("-1.parquet")) {
@@ -96,6 +96,6 @@ public class S3JsonBatchRecordWriterIT {
             return false;
         });
 
-        S3MinioServer.listFiles();
+        TestS3Minio.listFiles();
     }
 }

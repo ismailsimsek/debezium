@@ -15,11 +15,9 @@ import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 
 import io.debezium.server.DebeziumServer;
-import io.debezium.server.TestDatabase;
 import io.debezium.server.events.ConnectorCompletedEvent;
 import io.debezium.server.events.ConnectorStartedEvent;
 import io.debezium.util.Testing;
@@ -33,7 +31,7 @@ import software.amazon.awssdk.services.s3.S3Client;
  * @author Ismail Simsek
  */
 @QuarkusTest
-@QuarkusTestResource(S3MinioServer.class)
+@QuarkusTestResource(TestS3Minio.class)
 @QuarkusTestResource(io.debezium.server.batch.TestDatabase.class)
 public class S3IT {
 
@@ -67,7 +65,7 @@ public class S3IT {
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("s3"));
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            return S3MinioServer.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
+            return TestS3Minio.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
     }
 }
