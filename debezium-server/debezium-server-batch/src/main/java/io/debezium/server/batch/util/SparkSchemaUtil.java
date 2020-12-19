@@ -4,7 +4,7 @@
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
 
-package io.debezium.server.iceberg;
+package io.debezium.server.batch.util;
 
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataTypes;
@@ -19,13 +19,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
+
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
  *
  * @author Ismail Simsek
  */
-public class IcebergUtil {
-    protected static final Logger LOGGER = LoggerFactory.getLogger(IcebergUtil.class);
+public class SparkSchemaUtil {
+    protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractBatchRecordWriter.class);
 
     public static StructType getSparkDfSchema(JsonNode eventSchema) {
 
@@ -73,7 +75,7 @@ public class IcebergUtil {
                     break;
                 case "struct":
                     // recursive call
-                    StructType subSchema = IcebergUtil.getSparkDfSchema(jsonSchemaFieldNode);
+                    StructType subSchema = SparkSchemaUtil.getSparkDfSchema(jsonSchemaFieldNode);
                     sparkSchema = sparkSchema.add(new StructField(fieldName, subSchema, true, Metadata.empty()));
                     break;
                 default:
@@ -95,21 +97,21 @@ public class IcebergUtil {
                 || !jsonNode.get("fields").isArray()) {
             return null;
         }
-        return IcebergUtil.getSparkDfSchema(jsonNode.get("schema"));
+        return SparkSchemaUtil.getSparkDfSchema(jsonNode.get("schema"));
     }
 
     public static StructType getEventSparkDfSchema(String event) throws JsonProcessingException {
         JsonNode jsonNode = new ObjectMapper().readTree(event);
 
-        if (!IcebergUtil.hasSchema(jsonNode)) {
+        if (!SparkSchemaUtil.hasSchema(jsonNode)) {
             return null;
         }
-        return IcebergUtil.getSparkDfSchema(jsonNode.get("schema"));
+        return SparkSchemaUtil.getSparkDfSchema(jsonNode.get("schema"));
     }
 
     public static boolean hasSchema(String event) throws JsonProcessingException {
         JsonNode jsonNode = new ObjectMapper().readTree(event);
-        return IcebergUtil.hasSchema(jsonNode);
+        return SparkSchemaUtil.hasSchema(jsonNode);
     }
 
     public static boolean hasSchema(JsonNode jsonNode) {

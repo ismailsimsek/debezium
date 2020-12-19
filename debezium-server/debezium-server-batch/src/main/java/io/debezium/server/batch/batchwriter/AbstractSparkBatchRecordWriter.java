@@ -4,12 +4,13 @@
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
 
-package io.debezium.server.batch.batchwriter.spark;
+package io.debezium.server.batch.batchwriter;
 
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
 
+import io.debezium.server.batch.util.SparkSchemaUtil;
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.DataFrameReader;
@@ -26,7 +27,6 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Iterables;
 
-import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 
 /**
@@ -81,7 +81,7 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
 
     void setReaderSchema(DataFrameReader dfReader, String event) {
         try {
-            StructType schema = SparkBatchSchemaUtil.getEventSparkDfSchema(event);
+            StructType schema = SparkSchemaUtil.getEventSparkDfSchema(event);
             if (schema == null || schema.isEmpty()) {
                 return;
             }

@@ -3,12 +3,14 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.debezium.server.s3;
+package io.debezium.server.event.s3;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import javax.annotation.PostConstruct;
@@ -16,6 +18,8 @@ import javax.annotation.PreDestroy;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
 
+import io.debezium.engine.format.Json;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
@@ -47,12 +51,23 @@ public class S3ChangeConsumer extends BaseChangeConsumer implements DebeziumEngi
     final String credentialsProfile = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.credentials.profile", String.class).orElse("default");
     final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.endpointoverride", String.class).orElse("false");
     final Boolean useInstanceProfile = ConfigProvider.getConfig().getOptionalValue("debezium.sink.s3.credentials.useinstancecred", Boolean.class).orElse(false);
-    private final TimeBasedDailyObjectKeyMapper objectKeyMapper = new TimeBasedDailyObjectKeyMapper();
     S3Client s3client;
     @ConfigProperty(name = "debezium.sink.s3.bucket.name", defaultValue = "My-S3-Bucket")
     String bucket;
     @ConfigProperty(name = "debezium.sink.s3.region", defaultValue = "eu-central-1")
     String region;
+    final String objectKeyPrefix = ConfigProvider.getConfig().getValue("debezium.sink.s3.objectkey.prefix", String.class);
+    final String valueFormat = ConfigProvider.getConfig().getOptionalValue("debezium.format.value", String.class).orElse(Json.class.getSimpleName().toLowerCase());
+
+    public String map(String destination, LocalDateTime batchTime, String recordId) {
+        Objects.requireNonNull(destination, "destination Cannot be Null");
+        Objects.requireNonNull(batchTime, "batchTime Cannot be Null");
+        Objects.requireNonNull(recordId, "recordId Cannot be Null");
+        String fname = batchTime.toEpochSecond(ZoneOffset.UTC) + recordId + "." + valueFormat;
+        String partiton = "year=" + batchTime.getYear() + "/month=" + StringUtils.leftPad(batchTime.getMonthValue() + "", 2, '0') + "/day="
+                + StringUtils.leftPad(batchTime.getDayOfMonth() + "", 2, '0');
+        return objectKeyPrefix + destination + "/" + partiton + "/" + fname;
+    }
 
     @PostConstruct
     void connect() throws URISyntaxException {
@@ -94,7 +109,7 @@ public class S3ChangeConsumer extends BaseChangeConsumer implements DebeziumEngi
         for (ChangeEvent<Object, Object> record : records) {
             PutObjectRequest putRecord = PutObjectRequest.builder()
                     .bucket(bucket)
-                    .key(objectKeyMapper.map(record.destination(), batchTime, UUID.randomUUID().toString()))
+                    .key(this.map(record.destination(), batchTime, UUID.randomUUID().toString()))
                     .build();
             LOGGER.debug("Uploading s3File bucket:{} key:{} endpint:{}", putRecord.bucket(), putRecord.key(), endpointOverride);
             s3client.putObject(putRecord, RequestBody.fromBytes(getBytes(record.value())));

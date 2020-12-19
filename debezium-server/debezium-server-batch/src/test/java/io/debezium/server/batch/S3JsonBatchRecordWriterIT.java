@@ -5,11 +5,7 @@
  */
 package io.debezium.server.batch;
 
-import java.io.IOException;
 import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.List;
 
@@ -20,25 +16,16 @@ import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.debezium.server.DebeziumServer;
-import io.debezium.server.TestDatabase;
-import io.debezium.server.batch.batchwriter.s3.S3JsonBatchRecordWriter;
+import io.debezium.server.batch.batchwriter.S3JsonBatchRecordWriter;
 import io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper;
 import io.debezium.server.events.ConnectorCompletedEvent;
 import io.debezium.server.events.ConnectorStartedEvent;
 import io.debezium.util.Testing;
-import io.minio.errors.ErrorResponseException;
-import io.minio.errors.InsufficientDataException;
-import io.minio.errors.InternalException;
-import io.minio.errors.InvalidResponseException;
-import io.minio.errors.ServerException;
-import io.minio.errors.XmlParserException;
 import io.minio.messages.Item;
 import io.quarkus.test.junit.QuarkusTest;
 
