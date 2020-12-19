@@ -40,7 +40,7 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
     final Boolean removeSchema = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.removeschema", Boolean.class).orElse(true);
     protected String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.saveformat", String.class).orElse("json");
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractSparkBatchRecordWriter.class);
-    protected final String bucket = ConfigProvider.getConfig().getOptionalValue( "debezium.sink.sparkbatch.bucket.name", String.class).orElse("My-S3-Bucket");
+    protected final String bucket = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.bucket.name", String.class).orElse("My-S3-Bucket");
 
     SparkSession spark;
 

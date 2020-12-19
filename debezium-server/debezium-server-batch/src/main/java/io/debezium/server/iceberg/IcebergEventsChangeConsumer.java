@@ -3,11 +3,26 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
+
 package io.debezium.server.iceberg;
 
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.server.BaseChangeConsumer;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.enterprise.context.Dependent;
+import javax.inject.Named;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -25,26 +40,17 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.enterprise.context.Dependent;
-import javax.inject.Named;
-import java.io.Closeable;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -82,9 +88,9 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     Configuration hadoopConf = new Configuration();
     @ConfigProperty(name = "xxxxx??xxxx", defaultValue = "My-DB")
     String database;
-    //@ConfigProperty(name = PROP_PREFIX + CatalogProperties.CATALOG_IMPL, defaultValue = "set to haddop")
-    //String catalogImpl;
-    @ConfigProperty(name = PROP_PREFIX + "warehouse" /*CatalogProperties.WAREHOUSE_LOCATION*/)
+    // @ConfigProperty(name = PROP_PREFIX + CatalogProperties.CATALOG_IMPL, defaultValue = "set to haddop")
+    // String catalogImpl;
+    @ConfigProperty(name = PROP_PREFIX + "warehouse" /* CatalogProperties.WAREHOUSE_LOCATION */)
     String warehouseLocation;
     @ConfigProperty(name = PROP_PREFIX + "fs.defaultFS")
     String defaultFs;
@@ -95,7 +101,15 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     Table eventTable;
 
     @PostConstruct
-    void connect() throws URISyntaxException {
+    void connect() throws InterruptedException {
+
+        if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
+            throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) formats are {json,}!");
+        }
+        if (!keyFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
+            throw new InterruptedException("debezium.format.key={" + valueFormat + "} not supported! Supported (debezium.format.key=*) formats are {json,}!");
+        }
+
         // loop and set hadoopConf
         for (String name : ConfigProvider.getConfig().getPropertyNames()) {
             if (name.startsWith(PROP_PREFIX)) {
@@ -115,9 +129,9 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         eventTable = icebergCatalog.loadTable(TableIdentifier.of(TABLE_NAME));
         // hadoopTables = new HadoopTables(hadoopConf);// do we need this ??
         // @TODO iceberg 11
-        //if (catalogImpl != null) {
-        //    icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
-        //}
+        // if (catalogImpl != null) {
+        // icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
+        // }
     }
 
     @PreDestroy
@@ -142,15 +156,17 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
             LOGGER.debug("key:{}", record.key());
             LOGGER.debug("value:{}", record.value());
             LOGGER.debug("dest:{}", record.destination());
-            // @TODO
-            icebergRecords.add(icebergRecord.copy("age", 29L, "name", "GenericRecord-a"));
-//            required(1, "event_destination", Types.StringType.get(), "event destination"),
-//            optional(2, "event_key", Types.StringType.get()),
-//            optional(3, "event_key_value", Types.StringType.get()),
-//            optional(4, "event_value", Types.StringType.get()),
-//            optional(5, "event_value_format", Types.StringType.get()),
-//            optional(6, "event_key_format", Types.StringType.get()),
-//            optional(7, "event_sink_timestamp", Types.TimestampType.withZone()));
+            Map<String, Object> var1 = Maps.newHashMapWithExpectedSize(TABLE_SCHEMA.columns().size());
+            var1.put("event_destination", record.destination());
+            var1.put("event_key", getBytes(record.key()));
+            var1.put("event_key_value", null); // @TODO extract key value!
+            var1.put("event_value", getBytes(record.value()));
+            var1.put("event_value_format", valueFormat);
+            var1.put("event_key_format", keyFormat);
+            var1.put("event_sink_timestamp", LocalDateTime.now());
+            // @TODO add schema enabled flag! key value!
+            // @TODO add flattened flag SMT unwrap!
+            icebergRecords.add(icebergRecord.copy(var1));
 
             cntNumRows++;
             if (cntNumRows > batchLimit) {

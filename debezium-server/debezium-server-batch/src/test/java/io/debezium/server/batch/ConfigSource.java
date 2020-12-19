@@ -24,8 +24,8 @@ public class ConfigSource extends TestConfigSource {
         // common conf
         s3Test.put("debezium.sink.type", "batch");
         s3Test.put("debezium.sink.batch.objectkey.prefix", "debezium-cdc-");
-        //s3Test.put("debezium.sink.batch.objectkey.mapper", "dailypartitioned");
-        //s3Test.put("debezium.sink.batch.batchwriter", "s3json");
+        // s3Test.put("debezium.sink.batch.objectkey.mapper", "dailypartitioned");
+        // s3Test.put("debezium.sink.batch.batchwriter", "s3json");
         s3Test.put("debezium.sink.batch.objectkey.mapper", "table");
         s3Test.put("debezium.sink.batch.batchwriter", "iceberg");
         s3Test.put("debezium.sink.batch.row.limit", "2");

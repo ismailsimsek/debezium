@@ -5,6 +5,23 @@
  */
 package io.debezium.server.iceberg;
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.security.InvalidKeyException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+
+import org.awaitility.Awaitility;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.fest.assertions.Assertions;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
 import io.debezium.server.DebeziumServer;
 import io.debezium.server.TestDatabase;
 import io.debezium.server.batch.ConfigSource;
@@ -18,23 +35,7 @@ import io.minio.errors.InternalException;
 import io.minio.errors.InvalidResponseException;
 import io.minio.errors.ServerException;
 import io.minio.errors.XmlParserException;
-import io.minio.messages.Item;
 import io.quarkus.test.junit.QuarkusTest;
-import org.awaitility.Awaitility;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.fest.assertions.Assertions;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
-import javax.enterprise.event.Observes;
-import javax.inject.Inject;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
 
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to s3.
@@ -84,7 +85,7 @@ public class IcebergEventsIT {
             return;
         }
         db = new TestDatabase();
-        //db.start();
+        // db.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
@@ -99,8 +100,8 @@ public class IcebergEventsIT {
         Assertions.assertThat(sinkType.equals("icebergevents"));
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            //Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
-            //s3server.listFiles();
+            // Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
+            // s3server.listFiles();
             return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= 16;
         });
         s3server.listFiles();

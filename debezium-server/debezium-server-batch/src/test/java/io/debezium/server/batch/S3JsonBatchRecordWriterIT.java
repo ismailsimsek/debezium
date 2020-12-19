@@ -41,8 +41,6 @@ import io.minio.errors.XmlParserException;
 import io.minio.messages.Item;
 import io.quarkus.test.junit.QuarkusTest;
 
-import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to s3 destination.
  *
@@ -80,7 +78,7 @@ public class S3JsonBatchRecordWriterIT {
             return;
         }
         db = new TestDatabase();
-        //db.start();
+        // db.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
