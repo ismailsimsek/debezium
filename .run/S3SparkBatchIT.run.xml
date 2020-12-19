@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="S3SparkBatchIT" type="JUnit" factoryName="JUnit">
+  <configuration default="false" name="SparkIcebergBatchRecordWriterIT" type="JUnit" factoryName="JUnit">
     <module name="debezium-server-batch" />
     <useClassPathOnly />
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />

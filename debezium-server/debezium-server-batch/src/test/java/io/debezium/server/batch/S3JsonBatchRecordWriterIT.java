@@ -52,7 +52,6 @@ import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
 public class S3JsonBatchRecordWriterIT {
 
     private static final int MESSAGE_COUNT = 2;
-    static ProfileCredentialsProvider pcred = ProfileCredentialsProvider.create("default");
     protected static final S3MinioServer s3server = new S3MinioServer();
 
     protected static TestDatabase db = null;

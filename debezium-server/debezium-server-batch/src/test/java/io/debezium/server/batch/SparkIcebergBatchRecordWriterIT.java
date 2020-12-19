@@ -5,26 +5,7 @@
  */
 package io.debezium.server.batch;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.security.InvalidKeyException;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.time.Duration;
-import java.util.List;
-
-import javax.enterprise.event.Observes;
-import javax.inject.Inject;
-
-import org.awaitility.Awaitility;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.fest.assertions.Assertions;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import io.debezium.server.DebeziumServer;
 import io.debezium.server.TestDatabase;
 import io.debezium.server.batch.batchwriter.spark.SparkIcebergBatchRecordWriter;
@@ -40,9 +21,22 @@ import io.minio.errors.ServerException;
 import io.minio.errors.XmlParserException;
 import io.minio.messages.Item;
 import io.quarkus.test.junit.QuarkusTest;
+import org.awaitility.Awaitility;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.fest.assertions.Assertions;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
-import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
-import software.amazon.awssdk.services.s3.S3Client;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.security.InvalidKeyException;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.List;
 
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to s3 destination.
@@ -52,12 +46,13 @@ import software.amazon.awssdk.services.s3.S3Client;
 @QuarkusTest
 public class SparkIcebergBatchRecordWriterIT {
 
-    private static final int MESSAGE_COUNT = 2;
-    protected static S3Client s3client = null;
-    static ProfileCredentialsProvider pcred = ProfileCredentialsProvider.create("default");
     protected static final S3MinioServer s3server = new S3MinioServer();
-
+    private static final int MESSAGE_COUNT = 2;
     protected static TestDatabase db = null;
+    @Inject
+    DebeziumServer server;
+    @ConfigProperty(name = "debezium.sink.type")
+    String sinkType;
 
     {
         // Testing.Debug.enable();
@@ -70,28 +65,7 @@ public class SparkIcebergBatchRecordWriterIT {
         if (db != null) {
             db.stop();
         }
-        if (s3server != null) {
-            s3server.stop();
-        }
-    }
-
-    @Inject
-    DebeziumServer server;
-    @ConfigProperty(name = "debezium.sink.type")
-    String sinkType;
-
-    void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
-        if (!sinkType.equals("sparkbatch")) {
-            return;
-        }
-        db = new TestDatabase();
-        db.start();
-    }
-
-    void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
-        if (!event.isSuccess()) {
-            throw (Exception) event.getError().get();
-        }
+        s3server.stop();
     }
 
     @BeforeAll
@@ -101,39 +75,53 @@ public class SparkIcebergBatchRecordWriterIT {
         s3server.start();
     }
 
+    void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
+        if (!sinkType.equals("batch")) {
+            return;
+        }
+        db = new TestDatabase();
+        //db.start();
+    }
+
+    void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
+        if (!event.isSuccess()) {
+            throw (Exception) event.getError().get();
+        }
+    }
+
     @Test
-    public void testSparkBatch() throws Exception {
+    public void testS3Batch() throws Exception {
         Testing.Print.enable();
-        Assertions.assertThat(sinkType.equals("sparkbatch"));
-
-        SparkIcebergBatchRecordWriter bw = new SparkIcebergBatchRecordWriter(new LakeTableObjectKeyMapper());
-
-        ObjectMapper objectMapper = new ObjectMapper();
-        bw.append("table123", objectMapper.readTree("{\"row1\": \"data\"}"));
-        bw.append("table123", objectMapper.readTree("{\"row1\": \"data\"}"));
-        bw.append("table123", objectMapper.readTree("{\"row1\": \"data\"}"));
-        bw.append("table123", objectMapper.readTree("{\"row1\": \"data\"}"));
-        bw.append("table123", objectMapper.readTree("{\"row1\": \"data\"}"));
-        bw.close();
+        Assertions.assertThat(sinkType.equals("batch"));
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            List<Item> objects = s3server.getObjectList(ConfigSource.S3_BUCKET);
-            Testing.printError(objects);
-            // we expect to see 2 batch files {0,1}
-            for (Item o : objects) {
-                if (o.toString().contains("table123") && o.toString().contains("-1.")) {
-                    Testing.print(objects.toString());
-                    return true;
-                }
-            }
-            return false;
+            Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
+            s3server.listFiles();
+            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
-
-        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            List<Item> objects = s3server.getObjectList(ConfigSource.S3_BUCKET);
-            Testing.printError("Found " + objects.size() + " Objects. Expecting " + MESSAGE_COUNT);
-            return objects.size() >= MESSAGE_COUNT;
-        });
-
+//
+//        SparkIcebergBatchRecordWriter bw = new SparkIcebergBatchRecordWriter(new LakeTableObjectKeyMapper());
+//
+//        ObjectMapper objectMapper = new ObjectMapper();
+//        bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
+//        bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
+//        bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
+//        bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
+//        bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
+//        bw.close();
+//
+//        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
+//            List<Item> objects = s3server.getObjectList(ConfigSource.S3_BUCKET);
+//            // we expect to see 2 batch files {0,1}
+//            for (Item o : objects) {
+//                if (o.toString().contains("table1") && o.toString().contains("-1.parquet")) {
+//                    Testing.print(objects.toString());
+//                    return true;
+//                }
+//            }
+//            return false;
+//        });
+//
+        s3server.listFiles();
     }
 }
