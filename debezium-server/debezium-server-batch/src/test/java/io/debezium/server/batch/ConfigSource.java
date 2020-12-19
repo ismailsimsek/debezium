@@ -24,22 +24,20 @@ public class ConfigSource extends TestConfigSource {
         // common conf
         s3Test.put("debezium.sink.type", "batch");
         s3Test.put("debezium.sink.batch.objectkey.prefix", "debezium-cdc-");
+        s3Test.put("debezium.sink.batch.objectkey.mapper", "dailypartitioned");
+        s3Test.put("debezium.sink.batch.batchwriter", "s3json");
         s3Test.put("debezium.sink.batch.row.limit", "2");
         s3Test.put("debezium.sink.batch.time.limit", "3600");
 
         // s3batch sink
-        s3Test.put("io.debezium.server.batch.batchwriter.BatchRecordWriter", "io.debezium.server.batch.batchwriter.S3JsonBatchRecordWriter");
-        s3Test.put("io.debezium.server.batch.keymapper.ObjectKeyMapper", "io.debezium.server.batch.keymapper.DefaultObjectKeyMapper");
         s3Test.put("debezium.sink.batch.s3.region", S3_REGION);
         s3Test.put("debezium.sink.batch.s3.endpointoverride", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP);
         s3Test.put("debezium.sink.batch.s3.bucket.name", "s3a://" + S3_BUCKET);
         s3Test.put("debezium.sink.batch.s3.credentials.useinstancecred", "false");
 
-        // s3Test.put("io.debezium.server.batch.keymapper.ObjectKeyMapper", "io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper");
-
         // sparkbatch sink conf
         s3Test.put("debezium.sink.sparkbatch.removeschema", "true");
-        s3Test.put("debezium.sink.sparkbatch.saveformat", "iceberg");
+        s3Test.put("debezium.sink.sparkbatch.saveformat", "parquet");
         // spark conf
         s3Test.put("debezium.sink.sparkbatch.spark.ui.enabled", "false");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.session.timeZone", "UTC");

@@ -50,7 +50,7 @@ import software.amazon.awssdk.services.s3.S3Client;
  * @author Ismail Simsek
  */
 @QuarkusTest
-public class SparkBatchIT {
+public class SparkIcebergBatchRecordWriterIT {
 
     private static final int MESSAGE_COUNT = 2;
     protected static S3Client s3client = null;

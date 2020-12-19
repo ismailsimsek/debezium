@@ -49,7 +49,7 @@ import software.amazon.awssdk.auth.credentials.ProfileCredentialsProvider;
  * @author Ismail Simsek
  */
 @QuarkusTest
-public class S3JsonBatchIT {
+public class S3JsonBatchRecordWriterIT {
 
     private static final int MESSAGE_COUNT = 2;
     static ProfileCredentialsProvider pcred = ProfileCredentialsProvider.create("default");
@@ -68,9 +68,7 @@ public class S3JsonBatchIT {
         if (db != null) {
             db.stop();
         }
-        if (s3server != null) {
-            s3server.stop();
-        }
+        s3server.stop();
     }
 
     @Inject
@@ -83,7 +81,7 @@ public class S3JsonBatchIT {
             return;
         }
         db = new TestDatabase();
-        db.start();
+        //db.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
@@ -104,10 +102,8 @@ public class S3JsonBatchIT {
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("batch"));
 
-        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds()))
-                .until(() -> s3server.getObjectList(ConfigSource.S3_BUCKET).toString().contains(ConfigSource.S3_BUCKET));
-
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
+            Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
             return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
         });
 
@@ -125,12 +121,14 @@ public class S3JsonBatchIT {
             List<Item> objects = s3server.getObjectList(ConfigSource.S3_BUCKET);
             // we expect to see 2 batch files {0,1}
             for (Item o : objects) {
-                if (o.toString().contains("table1") && o.toString().contains("-1.json")) {
+                if (o.toString().contains("table1") && o.toString().contains("-1.parquet")) {
                     Testing.print(objects.toString());
                     return true;
                 }
             }
             return false;
         });
+
+        s3server.listFiles();
     }
 }
