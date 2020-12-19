@@ -121,17 +121,6 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         if (warehouseLocation == null || warehouseLocation.trim().isEmpty()) {
             warehouseLocation = defaultFs + "/iceberg/warehouse";
         }
-        icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
-
-        if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
-            icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);
-        }
-        eventTable = icebergCatalog.loadTable(TableIdentifier.of(TABLE_NAME));
-        // hadoopTables = new HadoopTables(hadoopConf);// do we need this ??
-        // @TODO iceberg 11
-        // if (catalogImpl != null) {
-        // icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
-        // }
     }
 
     @PreDestroy
@@ -144,9 +133,28 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         // }
     }
 
+    public void init(){
+        if (icebergCatalog == null) {
+        LOGGER.error("creating ctalog");
+        icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
+        LOGGER.error("created ctalog");
+
+        if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
+            icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);
+        }
+        eventTable = icebergCatalog.loadTable(TableIdentifier.of(TABLE_NAME));
+        // hadoopTables = new HadoopTables(hadoopConf);// do we need this ??
+        // @TODO iceberg 11
+        // if (catalogImpl != null) {
+        // icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
+        // }
+        }
+    }
+
     @Override
     public void handleBatch(List<ChangeEvent<Object, Object>> records, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
+        init();
         LocalDateTime batchTime = LocalDateTime.now();
         ArrayList<Record> icebergRecords = Lists.newArrayList();
         GenericRecord icebergRecord = GenericRecord.create(TABLE_SCHEMA);

@@ -46,12 +46,7 @@ import io.quarkus.test.junit.QuarkusTest;
 public class IcebergEventsIT {
 
     protected static final S3MinioServer s3server = new S3MinioServer();
-    protected static TestDatabase db;
-
-    static {
-        Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
-        Testing.Files.createTestingFile(ConfigSource.OFFSET_STORE_PATH);
-    }
+    protected static TestDatabase db = new TestDatabase();
 
     @Inject
     DebeziumServer server;
@@ -66,26 +61,18 @@ public class IcebergEventsIT {
 
     @AfterAll
     static void stop() {
-        if (db != null) {
-            db.stop();
-        }
+        db.stop();
         s3server.stop();
     }
 
-    @BeforeAll
-    static void setUpS3()
-            throws XmlParserException, InsufficientDataException, ServerException,
-            InternalException, InvalidResponseException, ErrorResponseException, IOException, NoSuchAlgorithmException, InvalidKeyException,
-            KeyManagementException {
-        s3server.start();
-    }
-
-    void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
+    void setupDependencies(@Observes ConnectorStartedEvent event)
+            throws URISyntaxException, IOException, InvalidKeyException, NoSuchAlgorithmException, XmlParserException, InsufficientDataException, ServerException,
+            InternalException, InvalidResponseException, ErrorResponseException, KeyManagementException {
         if (!sinkType.equals("icebergevents")) {
             return;
         }
-        db = new TestDatabase();
         db.start();
+        s3server.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
