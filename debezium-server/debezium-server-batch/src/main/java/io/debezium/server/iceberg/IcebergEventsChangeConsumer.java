@@ -81,9 +81,9 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
 
     // @ConfigProperty(name = "debezium.sink.iceberg.bucket.name", defaultValue = "My-S3-Bucket")
     // String bucket;
-    @ConfigProperty(name = "debezium.format.value")
+    @ConfigProperty(name = "debezium.format.value", defaultValue = "json")
     String valueFormat;
-    @ConfigProperty(name = "debezium.format.key")
+    @ConfigProperty(name = "debezium.format.key", defaultValue = "json")
     String keyFormat;
     Configuration hadoopConf = new Configuration();
     @ConfigProperty(name = "xxxxx??xxxx", defaultValue = "My-DB")

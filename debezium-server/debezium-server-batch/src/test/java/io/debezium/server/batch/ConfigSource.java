@@ -42,6 +42,19 @@ public class ConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.sparkbatch.saveformat", "parquet");
         s3Test.put("debezium.sink.sparkbatch.bucket.name", "s3a://" + S3_BUCKET);
 
+        // iceberg
+        s3Test.put("debezium.sink.iceberg.fs.defaultFS", "s3a://" + S3_BUCKET);
+        s3Test.put("debezium.sink.iceberg.warehouse", "iceberg_warehouse");
+        s3Test.put("debezium.sink.iceberg.user.timezone", "UTC");
+        s3Test.put("debezium.sink.iceberg.com.amazonaws.services.s3.enableV4", "true");
+        s3Test.put("debezium.sink.iceberg.com.amazonaws.services.s3a.enableV4", "true");
+        s3Test.put("debezium.sink.iceberg.fs.s3a.aws.credentials.provider", "com.amazonaws.auth.DefaultAWSCredentialsProviderChain");
+        s3Test.put("debezium.sink.iceberg.fs.s3a.access.key", S3MinioServer.MINIO_ACCESS_KEY);
+        s3Test.put("debezium.sink.iceberg.fs.s3a.secret.key", S3MinioServer.MINIO_SECRET_KEY);
+        s3Test.put("debezium.sink.iceberg.fs.s3a.path.style.access", "true");
+        s3Test.put("debezium.sink.iceberg.fs.s3a.endpoint", "http://localhost:" + S3MinioServer.MINIO_DEFAULT_PORT_MAP); // minio specific setting
+        s3Test.put("debezium.sink.iceberg.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
+
         // spark conf
         s3Test.put("debezium.sink.sparkbatch.spark.ui.enabled", "false");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.session.timeZone", "UTC");

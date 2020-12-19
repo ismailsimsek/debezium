@@ -85,7 +85,7 @@ public class IcebergEventsIT {
             return;
         }
         db = new TestDatabase();
-        // db.start();
+        db.start();
     }
 
     void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
@@ -95,7 +95,7 @@ public class IcebergEventsIT {
     }
 
     @Test
-    public void testS3() throws Exception {
+    public void testIcebergEvents() throws Exception {
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("icebergevents"));
 
