@@ -47,7 +47,6 @@ import java.util.List;
 public class SparkIcebergBatchRecordWriterIT {
 
     protected static final S3MinioServer s3server = new S3MinioServer();
-    private static final int MESSAGE_COUNT = 2;
     protected static TestDatabase db = null;
     @Inject
     DebeziumServer server;
@@ -95,9 +94,9 @@ public class SparkIcebergBatchRecordWriterIT {
         Assertions.assertThat(sinkType.equals("batch"));
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
-            s3server.listFiles();
-            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= MESSAGE_COUNT;
+            //Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
+            //s3server.listFiles();
+            return s3server.getObjectList(ConfigSource.S3_BUCKET).size() >= 16;
         });
 //
 //        SparkIcebergBatchRecordWriter bw = new SparkIcebergBatchRecordWriter(new LakeTableObjectKeyMapper());

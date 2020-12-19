@@ -43,6 +43,7 @@ public class SparkIcebergBatchRecordWriter extends AbstractSparkBatchRecordWrite
         Integer batchId = map_batchid.get(destination);
         final String data = map_data.get(destination);
         String s3File = objectKeyMapper.map(destination, batchTime, batchId, saveFormat);
+        final String fileName = bucket + "/" + s3File;
         LOGGER.debug("Uploading s3File With Spark destination:'{}' key:'{}'", destination, s3File);
         updateSparkSession();
         List<String> jsonData = Arrays.asList(data.split(IOUtils.LINE_SEPARATOR));
@@ -55,7 +56,6 @@ public class SparkIcebergBatchRecordWriter extends AbstractSparkBatchRecordWrite
             if (removeSchema && Arrays.asList(df.columns()).contains("payload")) {
                 df = df.select("payload.*");
             }
-            final String fileName = bucket + "/" + s3File;
             try {
                 df.write().format(saveFormat).mode("append").save(fileName);
             }
@@ -72,7 +72,7 @@ public class SparkIcebergBatchRecordWriter extends AbstractSparkBatchRecordWrite
         // start new batch
         map_data.remove(destination);
         cdcDb.commit();
-        LOGGER.debug("Upload Succeeded! destination:'{}' key:'{}'", destination, s3File);
+        LOGGER.debug("Upload Succeeded! destination:'{}' key:'{}'", destination, fileName);
     }
 
 }
