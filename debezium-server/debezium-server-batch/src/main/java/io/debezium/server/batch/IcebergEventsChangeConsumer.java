@@ -69,17 +69,11 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
             optional(5, "event_value_format", Types.StringType.get()),
             optional(6, "event_key_format", Types.StringType.get()),
             optional(7, "event_sink_timestamp", Types.TimestampType.withZone()));
-    // debezium.format.value.schemas.enable
-    // debezium.format.key.schemas.enable
-    // debezium.source.database.dbname - database
-    // partition by event_destination,event_sink_timestamp
-    // extract key value from json!
+    // @TODO extract key value from json!
     static final PartitionSpec TABLE_PARTITION = PartitionSpec.builderFor(TABLE_SCHEMA).identity("event_destination").day("event_sink_timestamp").build();
     private static final Logger LOGGER = LoggerFactory.getLogger(IcebergEventsChangeConsumer.class);
     private static final String PROP_PREFIX = "debezium.sink.iceberg.";
 
-    // @ConfigProperty(name = "debezium.sink.iceberg.bucket.name", defaultValue = "My-S3-Bucket")
-    // String bucket;
     @ConfigProperty(name = "debezium.format.value", defaultValue = "json")
     String valueFormat;
     @ConfigProperty(name = "debezium.format.key", defaultValue = "json")
@@ -87,13 +81,26 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     Configuration hadoopConf = new Configuration();
     @ConfigProperty(name = "xxxxx??xxxx", defaultValue = "My-DB")
     String database;
-    // @ConfigProperty(name = PROP_PREFIX + CatalogProperties.CATALOG_IMPL, defaultValue = "set to haddop")
-    // String catalogImpl;
+    @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL*/ , defaultValue = "hadoop")
+    String catalogImpl;
     @ConfigProperty(name = PROP_PREFIX + "warehouse" /* CatalogProperties.WAREHOUSE_LOCATION */)
     String warehouseLocation;
     @ConfigProperty(name = PROP_PREFIX + "fs.defaultFS")
     String defaultFs;
     final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
+
+    @ConfigProperty(name = "debezium.transforms")
+    String transforms;
+    @ConfigProperty(name = "value.converter.schemas.enable", defaultValue = "false")
+    Boolean formatValueSchemasEnable;
+    @ConfigProperty(name = "key.converter.schemas.enable", defaultValue = "true")
+    Boolean formatKeySchemasEnable;
+    @ConfigProperty(name = "debezium.format.schemas.enable")
+    // @ConfigProperty(name = "converter.schemas.enable")
+    Boolean formatSchemasEnable;
+    @ConfigProperty(name = "debezium.source.database.dbname")
+    String databaseName;
+
 
     // HadoopTables hadoopTables;
     Catalog icebergCatalog;
@@ -101,6 +108,8 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
 
     @PostConstruct
     void connect() throws InterruptedException {
+
+        LOGGER.error("====> {},{}, {}, {}, {}",transforms,formatValueSchemasEnable,formatKeySchemasEnable,formatSchemasEnable,databaseName );
 
         if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
             throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) formats are {json,}!");
@@ -111,6 +120,7 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
 
         // loop and set hadoopConf
         for (String name : ConfigProvider.getConfig().getPropertyNames()) {
+            LOGGER.error("CONFIG - {}", name);
             if (name.startsWith(PROP_PREFIX)) {
                 this.hadoopConf.set(name.substring(PROP_PREFIX.length()), ConfigProvider.getConfig().getValue(name, String.class));
                 LOGGER.debug("Setting Hadoop Conf '{}'='{}'", name.substring(PROP_PREFIX.length()), ConfigProvider.getConfig().getValue(name, String.class));
@@ -134,6 +144,8 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         // if (catalogImpl != null) {
         // icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
         // }
+
+
     }
 
 //    @PreDestroy
@@ -155,9 +167,9 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         int batchId = 0;
         int cntNumRows = 0;
         for (ChangeEvent<Object, Object> record : records) {
-            LOGGER.debug("key:{}", record.key());
-            LOGGER.debug("value:{}", record.value());
-            LOGGER.debug("dest:{}", record.destination());
+            LOGGER.debug("key===>{}", record.key());
+            LOGGER.debug("value===>{}", record.value());
+            LOGGER.debug("dest===>{}", record.destination());
             Map<String, Object> var1 = Maps.newHashMapWithExpectedSize(TABLE_SCHEMA.columns().size());
             var1.put("event_destination", record.destination());
             var1.put("event_key", getString(record.key()));
@@ -166,8 +178,9 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
             var1.put("event_value_format", valueFormat);
             var1.put("event_key_format", keyFormat);
             var1.put("event_sink_timestamp", LocalDateTime.now().atOffset(ZoneOffset.UTC));
-            // @TODO add schema enabled flag! key value!
+            // @TODO add schema enabled flag! key and value!
             // @TODO add flattened flag SMT unwrap!
+            // @TODO add db name
             icebergRecords.add(icebergRecord.copy(var1));
 
             cntNumRows++;
