@@ -10,15 +10,15 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.FixedHostPortGenericContainer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
+import org.testcontainers.utility.DockerImageName;
 
 import io.minio.ListObjectsArgs;
 import io.minio.MakeBucketArgs;
@@ -32,6 +32,7 @@ import io.minio.errors.ServerException;
 import io.minio.errors.XmlParserException;
 import io.minio.messages.Bucket;
 import io.minio.messages.Item;
+import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
@@ -53,12 +54,11 @@ public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
     }
 
     public static MinioClient client;
-    private GenericContainer container = null;
+    private GenericContainer<?> container = null;
 
     public Map<String, String> start() {
 
-        this.container = new FixedHostPortGenericContainer(DEFAULT_IMAGE)
-                .withFixedExposedPort(MINIO_DEFAULT_PORT_MAP, MINIO_DEFAULT_PORT)
+        this.container = new GenericContainer<>(DockerImageName.parse(DEFAULT_IMAGE))
                 .waitingFor(new HttpWaitStrategy()
                         .forPath(HEALTH_ENDPOINT)
                         .forPort(MINIO_DEFAULT_PORT)
@@ -67,6 +67,16 @@ public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
                 .withEnv("MINIO_SECRET_KEY", MINIO_SECRET_KEY)
                 .withEnv("MINIO_REGION_NAME", ConfigSource.S3_REGION)
                 .withCommand("server " + DEFAULT_STORAGE_DIRECTORY);
+        // new FixedHostPortGenericContainer(DEFAULT_IMAGE)
+        // .withFixedExposedPort(MINIO_DEFAULT_PORT_MAP, MINIO_DEFAULT_PORT)
+        // .waitingFor(new HttpWaitStrategy()
+        // .forPath(HEALTH_ENDPOINT)
+        // .forPort(MINIO_DEFAULT_PORT)
+        // .withStartupTimeout(Duration.ofSeconds(30)))
+        // .withEnv("MINIO_ACCESS_KEY", MINIO_ACCESS_KEY)
+        // .withEnv("MINIO_SECRET_KEY", MINIO_SECRET_KEY)
+        // .withEnv("MINIO_REGION_NAME", ConfigSource.S3_REGION)
+        // .withCommand("server " + DEFAULT_STORAGE_DIRECTORY);
         this.container.start();
 
         client = MinioClient.builder()
@@ -84,7 +94,7 @@ public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
             e.printStackTrace();
         }
         LOGGER.info("Minio Started!");
-        return null;
+        return Collections.singletonMap("quarkus.minio.port", container.getMappedPort(MINIO_DEFAULT_PORT).toString());
     }
 
     @Override

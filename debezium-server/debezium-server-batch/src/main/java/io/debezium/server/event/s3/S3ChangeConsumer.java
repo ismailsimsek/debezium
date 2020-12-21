@@ -18,7 +18,6 @@ import javax.annotation.PreDestroy;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
 
-import io.debezium.engine.format.Json;
 import org.apache.commons.lang3.StringUtils;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -27,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.format.Json;
 import io.debezium.server.BaseChangeConsumer;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;

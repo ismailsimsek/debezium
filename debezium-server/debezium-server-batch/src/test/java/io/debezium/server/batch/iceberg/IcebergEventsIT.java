@@ -10,18 +10,18 @@ import java.time.Duration;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
-import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
 import org.junit.jupiter.api.Test;
 
 import io.debezium.server.DebeziumServer;
-import io.debezium.server.batch.TestDatabase;
 import io.debezium.server.batch.ConfigSource;
+import io.debezium.server.batch.TestDatabase;
 import io.debezium.server.batch.TestS3Minio;
 import io.debezium.server.events.ConnectorCompletedEvent;
 import io.debezium.util.Testing;
+import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 
 /**
@@ -38,6 +38,10 @@ public class IcebergEventsIT {
     @Inject
     DebeziumServer server;
 
+    @Inject
+    @ConfigProperty(name = "quarkus.minio.port")
+    String minioPort;
+
     {
         // Testing.Debug.enable();
         Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
@@ -52,6 +56,8 @@ public class IcebergEventsIT {
 
     @Test
     public void testIcebergEvents() throws Exception {
+        Testing.printError("====> Minio : " + minioPort);
+        Testing.printError("====> System : " + System.getProperty("quarkus.minio.port"));
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("icebergevents"));
 

@@ -11,7 +11,6 @@ import java.time.Duration;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
-import io.quarkus.test.common.QuarkusTestResource;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
@@ -21,6 +20,7 @@ import io.debezium.server.DebeziumServer;
 import io.debezium.server.events.ConnectorCompletedEvent;
 import io.debezium.server.events.ConnectorStartedEvent;
 import io.debezium.util.Testing;
+import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 
 /**

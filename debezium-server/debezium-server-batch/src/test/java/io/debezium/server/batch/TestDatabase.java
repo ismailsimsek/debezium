@@ -5,14 +5,15 @@
  */
 package io.debezium.server.batch;
 
-import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
+import java.time.Duration;
+import java.util.Map;
+
 import org.junit.jupiter.api.Assertions;
 import org.testcontainers.containers.FixedHostPortGenericContainer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
-import java.time.Duration;
-import java.util.Map;
+import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 
 /**
  * @author Jiri Pechanec

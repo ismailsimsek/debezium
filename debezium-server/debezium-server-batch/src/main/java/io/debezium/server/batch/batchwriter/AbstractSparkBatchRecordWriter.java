@@ -10,7 +10,6 @@ import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
 
-import io.debezium.server.batch.util.SparkSchemaUtil;
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.DataFrameReader;
@@ -28,6 +27,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Iterables;
 
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
+import io.debezium.server.batch.util.SparkSchemaUtil;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.

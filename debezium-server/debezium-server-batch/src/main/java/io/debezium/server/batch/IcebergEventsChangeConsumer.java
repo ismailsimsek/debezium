@@ -78,7 +78,7 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     @ConfigProperty(name = "debezium.format.key", defaultValue = "json")
     String keyFormat;
     Configuration hadoopConf = new Configuration();
-    @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL*/ , defaultValue = "hadoop")
+    @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL */ , defaultValue = "hadoop")
     String catalogImpl;
     @ConfigProperty(name = PROP_PREFIX + "warehouse" /* CatalogProperties.WAREHOUSE_LOCATION */)
     String warehouseLocation;
@@ -138,15 +138,15 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
 
     }
 
-//    @PreDestroy
-//    void close() {
-//        // try {
-//        // s3client.close();
-//        // }
-//        // catch (Exception e) {
-//        // LOGGER.error("Exception while closing S3 client: ", e);
-//        // }
-//    }
+    // @PreDestroy
+    // void close() {
+    // // try {
+    // // s3client.close();
+    // // }
+    // // catch (Exception e) {
+    // // LOGGER.error("Exception while closing S3 client: ", e);
+    // // }
+    // }
 
     @Override
     public void handleBatch(List<ChangeEvent<Object, Object>> records, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
@@ -190,7 +190,7 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     }
 
     private void commitBatch(ArrayList<Record> icebergRecords, LocalDateTime batchTime, int batchId) throws InterruptedException {
-        final String fileName = UUID.randomUUID() + "-" + batchTime.toEpochSecond(ZoneOffset.UTC) + "-" + batchId + "."+ FileFormat.PARQUET.toString().toLowerCase();
+        final String fileName = UUID.randomUUID() + "-" + batchTime.toEpochSecond(ZoneOffset.UTC) + "-" + batchId + "." + FileFormat.PARQUET.toString().toLowerCase();
         OutputFile out = eventTable.io().newOutputFile(eventTable.locationProvider().newDataLocation(fileName));
 
         FileAppender<Record> writer = null;
