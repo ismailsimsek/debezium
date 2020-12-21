@@ -15,6 +15,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
@@ -47,10 +49,10 @@ public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, Au
     protected final ConcurrentMap<String, String> map_data;
     protected final ConcurrentMap<String, Integer> map_batchid;
     final ScheduledExecutorService timerExecutor = Executors.newSingleThreadScheduledExecutor();
+    protected final ObjectMapper jsonMapper = new ObjectMapper();
 
     public AbstractBatchRecordWriter(ObjectKeyMapper mapper) throws URISyntaxException {
         this.objectKeyMapper = mapper;
-
         // init db
         this.cdcDb = DBMaker
                 .fileDB(TEMPDIR.toPath().resolve("debeziumevents.db").toFile())
@@ -91,19 +93,19 @@ public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, Au
     }
 
     @Override
-    public void append(String destination, JsonNode valueJson) {
+    public void append(String destination, JsonNode valueJson) throws JsonProcessingException {
 
         if (!map_data.containsKey(destination)) {
-            map_data.put(destination, valueJson.toString());
+            map_data.put(destination, jsonMapper.writeValueAsString(valueJson).replace("\n",""));
             map_batchid.putIfAbsent(destination, 0);
             cdcDb.commit();
             return;
         }
 
-        map_data.put(destination, map_data.get(destination) + IOUtils.LINE_SEPARATOR + valueJson.toString());
+        map_data.put(destination, map_data.get(destination) + IOUtils.LINE_SEPARATOR + jsonMapper.writeValueAsString(valueJson).replace("\n",""));
 
         if (StringUtils.countMatches(map_data.get(destination), IOUtils.LINE_SEPARATOR) >= batchLimit) {
-            LOGGER.debug("Batch Limit reached Uploading Data, destination:{} batchId:{}", destination, map_batchid.get(destination));
+            LOGGER.debug("Batch Row Limit reached Uploading Data, destination:{} batchId:{}", destination, map_batchid.get(destination));
             this.uploadBatchFile(destination);
         }
         cdcDb.commit();
@@ -151,7 +153,7 @@ public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, Au
                 LOGGER.error("Non Processed Batch Data Found!");
             }
             else {
-                LOGGER.info("All Batch Data Successfully Processed.");
+                LOGGER.info("All The Data Successfully Processed.");
             }
 
             LOGGER.info("Closing Batch Consumer({})", this.getClass().getName());

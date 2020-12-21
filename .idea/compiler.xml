@@ -80,9 +80,10 @@
       </profile>
     </annotationProcessing>
     <bytecodeTargetLevel target="11">
+      <module name="debezium" target="11" />
       <module name="debezium-api" target="11" />
       <module name="debezium-assembly-descriptors" target="11" />
-      <module name="debezium-checkstyle" target="11" />
+      <module name="debezium-checkstyle" target="1.8" />
       <module name="debezium-connector-mongodb" target="11" />
       <module name="debezium-connector-mysql" target="11" />
       <module name="debezium-connector-postgres" target="11" />
@@ -90,13 +91,13 @@
       <module name="debezium-core" target="11" />
       <module name="debezium-ddl-parser" target="11" />
       <module name="debezium-embedded" target="11" />
-      <module name="debezium-ide-configs" target="11" />
+      <module name="debezium-ide-configs" target="1.8" />
       <module name="debezium-microbenchmark" target="11" />
       <module name="debezium-quarkus-outbox" target="11" />
       <module name="debezium-quarkus-outbox-deployment" target="11" />
       <module name="debezium-quarkus-outbox-integration-tests" target="11" />
       <module name="debezium-quarkus-outbox-parent" target="11" />
-      <module name="debezium-revapi" target="11" />
+      <module name="debezium-revapi" target="1.8" />
       <module name="debezium-scripting" target="11" />
       <module name="debezium-server" target="11" />
       <module name="debezium-server-batch" target="11" />

@@ -92,10 +92,10 @@ public class BatchChangeConsumer extends BaseChangeConsumer implements DebeziumE
             case "spark":
                 batchWriter = new SparkBatchRecordWriter(keyMapper);
                 break;
-            case "delta":
+            case "sparkdelta":
                 batchWriter = new SparkDeltaBatchRecordWriter(keyMapper);
                 break;
-            case "iceberg":
+            case "sparkiceberg":
                 batchWriter = new SparkIcebergBatchRecordWriter(keyMapper);
                 break;
             case "s3json":

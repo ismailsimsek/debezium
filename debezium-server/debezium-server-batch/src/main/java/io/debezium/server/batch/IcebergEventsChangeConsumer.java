@@ -102,10 +102,6 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     Catalog icebergCatalog;
     Table eventTable;
 
-    @Inject
-    @ConfigProperty(name = "quarkus.test.resource.minio.port")
-    String minioPort;
-
     @PostConstruct
     void connect() throws InterruptedException {
         if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
@@ -114,9 +110,6 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         if (!keyFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
             throw new InterruptedException("debezium.format.key={" + valueFormat + "} not supported! Supported (debezium.format.key=*) formats are {json,}!");
         }
-
-        LOGGER.error("========>{}",minioPort);
-        LOGGER.error("========>{}",System.getProperty("quarkus.test.resource.minio.port"));
 
         // loop and set hadoopConf
         for (String name : ConfigProvider.getConfig().getPropertyNames()) {
