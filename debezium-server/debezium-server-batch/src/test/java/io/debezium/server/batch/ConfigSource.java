@@ -33,7 +33,7 @@ public class ConfigSource extends TestConfigSource {
 
         // s3batch sink
         s3Test.put("debezium.sink.batch.s3.region", S3_REGION);
-        s3Test.put("debezium.sink.batch.s3.endpointoverride", "http://localhost:" + TestS3Minio.MINIO_DEFAULT_PORT_MAP);
+        s3Test.put("debezium.sink.batch.s3.endpointoverride", "http://localhost:9000");
         s3Test.put("debezium.sink.batch.s3.bucket.name", "s3a://" + S3_BUCKET);
         s3Test.put("debezium.sink.batch.s3.credentials.useinstancecred", "false");
 
@@ -52,7 +52,7 @@ public class ConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.iceberg.fs.s3a.access.key", TestS3Minio.MINIO_ACCESS_KEY);
         s3Test.put("debezium.sink.iceberg.fs.s3a.secret.key", TestS3Minio.MINIO_SECRET_KEY);
         s3Test.put("debezium.sink.iceberg.fs.s3a.path.style.access", "true");
-        s3Test.put("debezium.sink.iceberg.fs.s3a.endpoint", "http://localhost:" + TestS3Minio.MINIO_DEFAULT_PORT_MAP); // minio specific setting
+        s3Test.put("debezium.sink.iceberg.fs.s3a.endpoint", "http://localhost:9000"); // minio specific setting
         s3Test.put("debezium.sink.iceberg.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
 
         // spark conf
@@ -69,7 +69,7 @@ public class ConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.access.key", TestS3Minio.MINIO_ACCESS_KEY);
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.secret.key", TestS3Minio.MINIO_SECRET_KEY);
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.path.style.access", "true");
-        s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:" + TestS3Minio.MINIO_DEFAULT_PORT_MAP); // minio specific setting
+        s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:9000"); // minio specific setting
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.type", "hadoop");
@@ -93,7 +93,7 @@ public class ConfigSource extends TestConfigSource {
         s3Test.put("debezium.source." + StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG, OFFSET_STORE_PATH.toAbsolutePath().toString());
         s3Test.put("debezium.source.offset.flush.interval.ms", "0");
         s3Test.put("debezium.source.database.hostname", TestDatabase.POSTGRES_HOST);
-        s3Test.put("debezium.source.database.port", Integer.toString(TestDatabase.POSTGRES_PORT));
+        s3Test.put("debezium.source.database.port", Integer.toString(5432));// this set by TestDatabase
         s3Test.put("debezium.source.database.user", TestDatabase.POSTGRES_USER);
         s3Test.put("debezium.source.database.password", TestDatabase.POSTGRES_PASSWORD);
         s3Test.put("debezium.source.database.dbname", TestDatabase.POSTGRES_DBNAME);

@@ -6,6 +6,7 @@
 package io.debezium.server.batch;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Map;
 
 import org.junit.jupiter.api.Assertions;
@@ -24,16 +25,15 @@ public class TestDatabase implements QuarkusTestResourceLifecycleManager {
     public static final String POSTGRES_PASSWORD = "postgres";
     public static final String POSTGRES_DBNAME = "postgres";
     public static final String POSTGRES_IMAGE = "debezium/example-postgres";
-    public static final String POSTGRES_HOST = "localhost";
     public static final Integer POSTGRES_PORT = 5432;
 
-    private GenericContainer container;
+    private GenericContainer<?> container;
 
     public Map<String, String> start() {
         try {
 
-            container = new FixedHostPortGenericContainer(POSTGRES_IMAGE)
-                    .withFixedExposedPort(POSTGRES_PORT, POSTGRES_PORT)
+            container = new GenericContainer<>(POSTGRES_IMAGE)
+                    //.withFixedExposedPort(POSTGRES_PORT, POSTGRES_PORT)
                     .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*", 2))
                     .withEnv("POSTGRES_USER", POSTGRES_USER)
                     .withEnv("POSTGRES_PASSWORD", POSTGRES_PASSWORD)
@@ -46,15 +46,7 @@ public class TestDatabase implements QuarkusTestResourceLifecycleManager {
         catch (Exception e) {
             Assertions.fail(e);
         }
-        return null;
-    }
-
-    public String getIp() {
-        return POSTGRES_HOST;
-    }
-
-    public int getPort() {
-        return POSTGRES_PORT;
+        return Collections.singletonMap("debezium.source.database.port", container.getMappedPort(POSTGRES_PORT).toString());
     }
 
     @Override

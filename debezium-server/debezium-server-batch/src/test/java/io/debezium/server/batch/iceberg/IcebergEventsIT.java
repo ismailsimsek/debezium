@@ -39,7 +39,7 @@ public class IcebergEventsIT {
     DebeziumServer server;
 
     @Inject
-    @ConfigProperty(name = "quarkus.minio.port")
+    @ConfigProperty(name = "quarkus.test.resource.minio.port")
     String minioPort;
 
     {
@@ -57,7 +57,7 @@ public class IcebergEventsIT {
     @Test
     public void testIcebergEvents() throws Exception {
         Testing.printError("====> Minio : " + minioPort);
-        Testing.printError("====> System : " + System.getProperty("quarkus.minio.port"));
+        Testing.printError("====> System : " + System.getProperty("quarkus.test.resource.minio.port"));
         Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("icebergevents"));
 

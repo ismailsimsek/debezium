@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +41,6 @@ public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
 
     protected static final Logger LOGGER = LoggerFactory.getLogger(TestS3Minio.class);
     static final int MINIO_DEFAULT_PORT = 9000;
-    static final int MINIO_DEFAULT_PORT_MAP = 9000;
     static final String DEFAULT_IMAGE = "minio/minio:latest";
     static final String DEFAULT_STORAGE_DIRECTORY = "/data";
     static final String HEALTH_ENDPOINT = "/minio/health/ready";
@@ -67,16 +67,6 @@ public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
                 .withEnv("MINIO_SECRET_KEY", MINIO_SECRET_KEY)
                 .withEnv("MINIO_REGION_NAME", ConfigSource.S3_REGION)
                 .withCommand("server " + DEFAULT_STORAGE_DIRECTORY);
-        // new FixedHostPortGenericContainer(DEFAULT_IMAGE)
-        // .withFixedExposedPort(MINIO_DEFAULT_PORT_MAP, MINIO_DEFAULT_PORT)
-        // .waitingFor(new HttpWaitStrategy()
-        // .forPath(HEALTH_ENDPOINT)
-        // .forPort(MINIO_DEFAULT_PORT)
-        // .withStartupTimeout(Duration.ofSeconds(30)))
-        // .withEnv("MINIO_ACCESS_KEY", MINIO_ACCESS_KEY)
-        // .withEnv("MINIO_SECRET_KEY", MINIO_SECRET_KEY)
-        // .withEnv("MINIO_REGION_NAME", ConfigSource.S3_REGION)
-        // .withCommand("server " + DEFAULT_STORAGE_DIRECTORY);
         this.container.start();
 
         client = MinioClient.builder()
@@ -94,24 +84,17 @@ public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
             e.printStackTrace();
         }
         LOGGER.info("Minio Started!");
-        return Collections.singletonMap("quarkus.minio.port", container.getMappedPort(MINIO_DEFAULT_PORT).toString());
+        Map<String, String> params = new ConcurrentHashMap<>();
+        params.put("quarkus.test.resource.minio.port", "http://localhost:" + container.getMappedPort(MINIO_DEFAULT_PORT).toString());
+        params.put("debezium.sink.batch.s3.endpointoverride", "http://localhost:" + container.getMappedPort(MINIO_DEFAULT_PORT).toString());
+        params.put("debezium.sink.iceberg.fs.s3a.endpoint", "http://localhost:" + container.getMappedPort(MINIO_DEFAULT_PORT).toString());
+        params.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.endpoint", "http://localhost:" + container.getMappedPort(MINIO_DEFAULT_PORT).toString());
+        return params;
     }
 
     @Override
     public void stop() {
         container.stop();
-    }
-
-    public String getContainerIpAddress() {
-        return this.container.getContainerIpAddress();
-    }
-
-    public Integer getMappedPort() {
-        return this.container.getMappedPort(MINIO_DEFAULT_PORT);
-    }
-
-    public Integer getFirstMappedPort() {
-        return this.container.getFirstMappedPort();
     }
 
     public void listBuckets()
