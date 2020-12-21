@@ -79,37 +79,36 @@
         <module name="debezium-quarkus-outbox-deployment" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="debezium-api" target="1.8" />
-      <module name="debezium-assembly-descriptors" target="1.8" />
-      <module name="debezium-checkstyle" target="1.8" />
-      <module name="debezium-connector-mongodb" target="1.8" />
-      <module name="debezium-connector-mysql" target="1.8" />
-      <module name="debezium-connector-postgres" target="1.8" />
-      <module name="debezium-connector-sqlserver" target="1.8" />
-      <module name="debezium-core" target="1.8" />
-      <module name="debezium-ddl-parser" target="1.8" />
-      <module name="debezium-embedded" target="1.8" />
-      <module name="debezium-ide-configs" target="1.8" />
-      <module name="debezium-microbenchmark" target="1.8" />
-      <module name="debezium-parent" target="1.8" />
-      <module name="debezium-quarkus-outbox" target="1.8" />
-      <module name="debezium-quarkus-outbox-deployment" target="1.8" />
-      <module name="debezium-quarkus-outbox-integration-tests" target="1.8" />
-      <module name="debezium-quarkus-outbox-parent" target="1.8" />
-      <module name="debezium-revapi" target="1.8" />
-      <module name="debezium-scripting" target="1.8" />
-      <module name="debezium-server" target="1.8" />
-      <module name="debezium-server-batch" target="1.8" />
-      <module name="debezium-server-core" target="1.8" />
-      <module name="debezium-server-dist" target="1.8" />
-      <module name="debezium-server-eventhubs" target="1.8" />
-      <module name="debezium-server-kinesis" target="1.8" />
-      <module name="debezium-server-pubsub" target="1.8" />
-      <module name="debezium-server-pulsar" target="1.8" />
-      <module name="debezium-testing" target="1.8" />
-      <module name="debezium-testing-openshift" target="1.8" />
-      <module name="debezium-testing-testcontainers" target="1.8" />
+    <bytecodeTargetLevel target="11">
+      <module name="debezium-api" target="11" />
+      <module name="debezium-assembly-descriptors" target="11" />
+      <module name="debezium-checkstyle" target="11" />
+      <module name="debezium-connector-mongodb" target="11" />
+      <module name="debezium-connector-mysql" target="11" />
+      <module name="debezium-connector-postgres" target="11" />
+      <module name="debezium-connector-sqlserver" target="11" />
+      <module name="debezium-core" target="11" />
+      <module name="debezium-ddl-parser" target="11" />
+      <module name="debezium-embedded" target="11" />
+      <module name="debezium-ide-configs" target="11" />
+      <module name="debezium-microbenchmark" target="11" />
+      <module name="debezium-quarkus-outbox" target="11" />
+      <module name="debezium-quarkus-outbox-deployment" target="11" />
+      <module name="debezium-quarkus-outbox-integration-tests" target="11" />
+      <module name="debezium-quarkus-outbox-parent" target="11" />
+      <module name="debezium-revapi" target="11" />
+      <module name="debezium-scripting" target="11" />
+      <module name="debezium-server" target="11" />
+      <module name="debezium-server-batch" target="11" />
+      <module name="debezium-server-core" target="11" />
+      <module name="debezium-server-dist" target="11" />
+      <module name="debezium-server-eventhubs" target="11" />
+      <module name="debezium-server-kinesis" target="11" />
+      <module name="debezium-server-pubsub" target="11" />
+      <module name="debezium-server-pulsar" target="11" />
+      <module name="debezium-testing" target="11" />
+      <module name="debezium-testing-openshift" target="11" />
+      <module name="debezium-testing-testcontainers" target="11" />
     </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
