@@ -60,6 +60,6 @@ public class IcebergEventsIT {
             // s3server.listFiles();
             return TestS3Minio.getObjectList(ConfigSource.S3_BUCKET).size() >= 9;
         });
-        //s3server.listFiles();
+        TestS3Minio.listFiles();
     }
 }

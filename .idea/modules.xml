@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/debezium.iml" filepath="$PROJECT_DIR$/.idea/debezium.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-api/debezium-api.iml" filepath="$PROJECT_DIR$/debezium-api/debezium-api.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-assembly-descriptors/debezium-assembly-descriptors.iml" filepath="$PROJECT_DIR$/debezium-assembly-descriptors/debezium-assembly-descriptors.iml" />
       <module fileurl="file://$PROJECT_DIR$/support/checkstyle/debezium-checkstyle.iml" filepath="$PROJECT_DIR$/support/checkstyle/debezium-checkstyle.iml" />
@@ -14,7 +15,6 @@
       <module fileurl="file://$PROJECT_DIR$/debezium-embedded/debezium-embedded.iml" filepath="$PROJECT_DIR$/debezium-embedded/debezium-embedded.iml" />
       <module fileurl="file://$PROJECT_DIR$/support/ide-configs/debezium-ide-configs.iml" filepath="$PROJECT_DIR$/support/ide-configs/debezium-ide-configs.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-microbenchmark/debezium-microbenchmark.iml" filepath="$PROJECT_DIR$/debezium-microbenchmark/debezium-microbenchmark.iml" />
-      <module fileurl="file://$PROJECT_DIR$/debezium-parent.iml" filepath="$PROJECT_DIR$/debezium-parent.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-quarkus-outbox/runtime/debezium-quarkus-outbox.iml" filepath="$PROJECT_DIR$/debezium-quarkus-outbox/runtime/debezium-quarkus-outbox.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-quarkus-outbox/deployment/debezium-quarkus-outbox-deployment.iml" filepath="$PROJECT_DIR$/debezium-quarkus-outbox/deployment/debezium-quarkus-outbox-deployment.iml" />
       <module fileurl="file://$PROJECT_DIR$/debezium-quarkus-outbox/integration-tests/debezium-quarkus-outbox-integration-tests.iml" filepath="$PROJECT_DIR$/debezium-quarkus-outbox/integration-tests/debezium-quarkus-outbox-integration-tests.iml" />

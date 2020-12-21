@@ -69,7 +69,6 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
             optional(5, "event_value_format", Types.StringType.get()),
             optional(6, "event_key_format", Types.StringType.get()),
             optional(7, "event_sink_timestamp", Types.TimestampType.withZone()));
-    // @TODO extract key value from json!
     static final PartitionSpec TABLE_PARTITION = PartitionSpec.builderFor(TABLE_SCHEMA).identity("event_destination").day("event_sink_timestamp").build();
     private static final Logger LOGGER = LoggerFactory.getLogger(IcebergEventsChangeConsumer.class);
     private static final String PROP_PREFIX = "debezium.sink.iceberg.";
@@ -79,8 +78,6 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     @ConfigProperty(name = "debezium.format.key", defaultValue = "json")
     String keyFormat;
     Configuration hadoopConf = new Configuration();
-    @ConfigProperty(name = "xxxxx??xxxx", defaultValue = "My-DB")
-    String database;
     @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL*/ , defaultValue = "hadoop")
     String catalogImpl;
     @ConfigProperty(name = PROP_PREFIX + "warehouse" /* CatalogProperties.WAREHOUSE_LOCATION */)
@@ -101,16 +98,11 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     @ConfigProperty(name = "debezium.source.database.dbname")
     String databaseName;
 
-
-    // HadoopTables hadoopTables;
     Catalog icebergCatalog;
     Table eventTable;
 
     @PostConstruct
     void connect() throws InterruptedException {
-
-        LOGGER.error("====> {},{}, {}, {}, {}",transforms,formatValueSchemasEnable,formatKeySchemasEnable,formatSchemasEnable,databaseName );
-
         if (!valueFormat.equalsIgnoreCase(Json.class.getSimpleName().toLowerCase())) {
             throw new InterruptedException("debezium.format.value={" + valueFormat + "} not supported! Supported (debezium.format.value=*) formats are {json,}!");
         }
@@ -120,10 +112,9 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
 
         // loop and set hadoopConf
         for (String name : ConfigProvider.getConfig().getPropertyNames()) {
-            LOGGER.error("CONFIG - {}", name);
             if (name.startsWith(PROP_PREFIX)) {
                 this.hadoopConf.set(name.substring(PROP_PREFIX.length()), ConfigProvider.getConfig().getValue(name, String.class));
-                LOGGER.debug("Setting Hadoop Conf '{}'='{}'", name.substring(PROP_PREFIX.length()), ConfigProvider.getConfig().getValue(name, String.class));
+                LOGGER.debug("Setting Hadoop Conf '{}' from application.properties!", name.substring(PROP_PREFIX.length()));
             }
         }
 
@@ -140,11 +131,10 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         }
         eventTable = icebergCatalog.loadTable(TableIdentifier.of(TABLE_NAME));
         // hadoopTables = new HadoopTables(hadoopConf);// do we need this ??
-        // @TODO iceberg 11
+        // @TODO iceberg 11 . make catalog dynamic using catalogImpl parametter!
         // if (catalogImpl != null) {
         // icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
         // }
-
 
     }
 
@@ -178,9 +168,11 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
             var1.put("event_value_format", valueFormat);
             var1.put("event_key_format", keyFormat);
             var1.put("event_sink_timestamp", LocalDateTime.now().atOffset(ZoneOffset.UTC));
-            // @TODO add schema enabled flag! key and value!
+            // @TODO add schema enabled flags! for key and value!
             // @TODO add flattened flag SMT unwrap!
             // @TODO add db name
+            // @TODO extract value from key and store it - event_key_value!
+
             icebergRecords.add(icebergRecord.copy(var1));
 
             cntNumRows++;
