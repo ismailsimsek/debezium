@@ -7,8 +7,10 @@
 package io.debezium.server.batch.keymapper;
 
 import java.time.LocalDateTime;
-import io.debezium.engine.format.Json;
+
 import org.eclipse.microprofile.config.ConfigProvider;
+
+import io.debezium.engine.format.Json;
 
 public class LakeTableObjectKeyMapper implements ObjectKeyMapper {
     final String objectKeyPrefix = ConfigProvider.getConfig().getValue("debezium.sink.batch.objectkey.prefix", String.class);

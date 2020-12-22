@@ -7,6 +7,7 @@
 package io.debezium.server.batch.batchwriter;
 
 import java.io.IOException;
+
 import com.fasterxml.jackson.databind.JsonNode;
 
 public interface BatchRecordWriter {

@@ -144,6 +144,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                 LOGGER.error(sampleEvent.toString());
                 if (ConsumerUtil.hasSchema(sampleEvent) && sampleEvent.has("schema")) {
                     Schema schema = ConsumerUtil.getIcebergSchema(sampleEvent.get("schema"));
+                    LOGGER.warn("Table '{}' not found creating it!\nSchema:\n{}", TableIdentifier.of(event.getKey()), schema.toString());
                     icebergTable = icebergCatalog.createTable(TableIdentifier.of(event.getKey()), schema);
                 }
                 else {

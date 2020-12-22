@@ -8,10 +8,13 @@ package io.debezium.server.batch.batchwriter;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
+
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
+
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;

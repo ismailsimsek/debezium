@@ -8,6 +8,7 @@ package io.debezium.server.test;
 
 import java.util.Arrays;
 import java.util.List;
+
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;

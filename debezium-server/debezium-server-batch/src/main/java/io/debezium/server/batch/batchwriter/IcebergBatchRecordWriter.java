@@ -8,7 +8,7 @@ package io.debezium.server.batch.batchwriter;
 
 import java.net.URISyntaxException;
 import java.time.LocalDateTime;
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -16,6 +16,8 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
