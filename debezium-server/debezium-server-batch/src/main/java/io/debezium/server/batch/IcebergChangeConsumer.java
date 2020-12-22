@@ -27,6 +27,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -131,7 +132,21 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                 ));
 
         for (Map.Entry<String, ArrayList<ChangeEvent<Object, Object>>> event : result.entrySet()) {
-            Table icebergTable = icebergCatalog.loadTable(TableIdentifier.of(event.getKey()));
+            Table icebergTable;
+            try {
+                icebergTable = icebergCatalog.loadTable(TableIdentifier.of(event.getKey()));
+            }
+            catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
+                JsonNode sampleEvent = jsonDeserializer.deserialize(event.getValue().get(0).destination(), getBytes(event.getValue().get(0).value()));
+                // boolean hasSchema= ConsumerUtil.hasSchema(sampleEvent);
+                LOGGER.error(sampleEvent.toString());
+                if (ConsumerUtil.hasSchema(sampleEvent) && sampleEvent.has("schema")) {
+                    Schema schema = ConsumerUtil.getIcebergSchema(sampleEvent.get("schema"));
+                    icebergTable = icebergCatalog.createTable(TableIdentifier.of(event.getKey()), schema);
+                }else{
+                    throw new InterruptedException("Iceberg table not found!" + e.getMessage());
+                }
+            }
             // @TODO create table if not exists!
             // if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
             // icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);

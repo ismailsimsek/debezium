@@ -77,7 +77,7 @@ public class ConfigSource extends TestConfigSource {
         // DEBEZIUM PROP
         s3Test.put("debezium.sink.sparkbatch.spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore");
         // enable disable schema
-        // s3Test.put("debezium.format.value.schemas.enable", "true");
+        s3Test.put("debezium.format.value.schemas.enable", "true");
         // s3Test.put("debezium.format.value.converter", "io.debezium.converters.CloudEventsConverter");
         // s3Test.put("value.converter", "io.debezium.converters.CloudEventsConverter");
         // s3Test.put("debezium.format.value.converter.data.serializer.type" , "json");
