@@ -14,10 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,7 +37,6 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -141,7 +138,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
             // }
             GenericRecord genericRecord = GenericRecord.create(icebergTable.schema());
             ArrayList<Record> icebergRecords = event.getValue().stream()
-                    .map(x -> getIcebergRecord(genericRecord,x))
+                    .map(x -> getIcebergRecord(genericRecord, x))
                     .collect(Collectors.toCollection(ArrayList::new));
 
             commitTable(icebergTable, icebergRecords);
