@@ -9,7 +9,10 @@ package io.debezium.server.batch.batchwriter;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.collect.Iterables;
+import io.debezium.server.batch.ConsumerUtil;
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.DataFrameReader;
@@ -23,12 +26,6 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.google.common.collect.Iterables;
-
-import io.debezium.server.batch.ConsumerUtil;
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
-
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
  *
@@ -36,17 +33,15 @@ import io.debezium.server.batch.keymapper.ObjectKeyMapper;
  */
 abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter {
 
-    private static final String SPARK_PROP_PREFIX = "debezium.sink.sparkbatch.";
-    final Boolean removeSchema = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.removeschema", Boolean.class).orElse(true);
-    protected String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.saveformat", String.class).orElse("json");
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractSparkBatchRecordWriter.class);
+    private static final String SPARK_PROP_PREFIX = "debezium.sink.sparkbatch.";
     protected final String bucket = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.bucket.name", String.class).orElse("My-S3-Bucket");
-
-    SparkSession spark;
-
+    final Boolean removeSchema = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.removeschema", Boolean.class).orElse(true);
     private final SparkConf sparkconf = new SparkConf()
             .setAppName("CDC-S3-Batch-Spark-Sink")
             .setMaster("local");
+    protected String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.saveformat", String.class).orElse("json");
+    SparkSession spark;
 
     public AbstractSparkBatchRecordWriter(ObjectKeyMapper mapper) throws URISyntaxException {
         super(mapper);

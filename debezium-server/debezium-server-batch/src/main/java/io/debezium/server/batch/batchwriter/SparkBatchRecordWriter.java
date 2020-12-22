@@ -7,11 +7,9 @@
 package io.debezium.server.batch.batchwriter;
 
 import java.net.URISyntaxException;
-
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.

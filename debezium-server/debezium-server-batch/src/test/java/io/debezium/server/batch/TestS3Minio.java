@@ -10,6 +10,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
+import org.testcontainers.utility.DockerImageName;
+
 import io.minio.ListObjectsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -17,11 +24,7 @@ import io.minio.Result;
 import io.minio.messages.Bucket;
 import io.minio.messages.Item;
 import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.wait.strategy.HttpWaitStrategy;
-import org.testcontainers.utility.DockerImageName;
+
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 
 public class TestS3Minio implements QuarkusTestResourceLifecycleManager {

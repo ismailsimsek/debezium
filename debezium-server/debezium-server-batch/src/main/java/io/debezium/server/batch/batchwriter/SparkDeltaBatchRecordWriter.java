@@ -9,7 +9,8 @@ package io.debezium.server.batch.batchwriter;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
-
+import com.google.common.collect.Iterables;
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.sql.DataFrameReader;
 import org.apache.spark.sql.Dataset;
@@ -18,10 +19,6 @@ import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SaveMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Iterables;
-
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.

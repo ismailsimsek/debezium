@@ -8,12 +8,10 @@ package io.debezium.server.batch;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
-
+import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import org.junit.jupiter.api.Assertions;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
-
-import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 
 /**
  * @author Jiri Pechanec

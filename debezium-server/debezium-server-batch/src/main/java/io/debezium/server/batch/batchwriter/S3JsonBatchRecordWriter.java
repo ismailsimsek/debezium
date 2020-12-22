@@ -8,13 +8,10 @@ package io.debezium.server.batch.batchwriter;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
-
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
@@ -31,13 +28,11 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
  */
 public class S3JsonBatchRecordWriter extends AbstractBatchRecordWriter {
     protected static final Logger LOGGER = LoggerFactory.getLogger(S3JsonBatchRecordWriter.class);
-
-    final String region = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.region", String.class).orElse("eu-central-1");
-    final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.endpointoverride", String.class).orElse("false");
     protected final String bucket = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.bucket.name", String.class).orElse("My-S3-Bucket");
     protected final Boolean useInstanceProfile = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.credentials.useinstancecred", Boolean.class)
             .orElse(false);
-
+    final String region = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.region", String.class).orElse("eu-central-1");
+    final String endpointOverride = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.s3.endpointoverride", String.class).orElse("false");
     private final S3Client s3Client;
 
     public S3JsonBatchRecordWriter(ObjectKeyMapper mapper)

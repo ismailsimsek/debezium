@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
-import io.debezium.server.batch.ConsumerUtil;
 import io.debezium.util.Testing;
 
 class TestUtil {
@@ -46,7 +45,7 @@ class TestUtil {
         StructType ss = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
         assertNotNull(s);
         assert ss != null;
-        assertEquals(s.asStruct().toString(),ss.catalogString());
+        assertEquals(s.asStruct().toString(), ss.catalogString());
         assertTrue(s.asStruct().toString().contains("before:struct<id"));
         assertTrue(s.asStruct().toString().contains("after:struct<id"));
     }

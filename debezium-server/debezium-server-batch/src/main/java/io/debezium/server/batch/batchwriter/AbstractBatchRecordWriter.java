@@ -14,7 +14,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.io.Files;
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
@@ -25,13 +29,6 @@ import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.io.Files;
-
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
-
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
  *
@@ -39,17 +36,17 @@ import io.debezium.server.batch.keymapper.ObjectKeyMapper;
  */
 public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, AutoCloseable {
 
-    protected final File TEMPDIR = Files.createTempDir();
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractBatchRecordWriter.class);
-    protected LocalDateTime batchTime = LocalDateTime.now();
-    // @TODO check param naming!
-    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
+    protected final File TEMPDIR = Files.createTempDir();
     protected final ObjectKeyMapper objectKeyMapper;
     protected final DB cdcDb;
     protected final ConcurrentMap<String, String> map_data;
     protected final ConcurrentMap<String, Integer> map_batchid;
-    final ScheduledExecutorService timerExecutor = Executors.newSingleThreadScheduledExecutor();
     protected final ObjectMapper jsonMapper = new ObjectMapper();
+    // @TODO check param naming!
+    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
+    final ScheduledExecutorService timerExecutor = Executors.newSingleThreadScheduledExecutor();
+    protected LocalDateTime batchTime = LocalDateTime.now();
 
     public AbstractBatchRecordWriter(ObjectKeyMapper mapper) throws URISyntaxException {
         this.objectKeyMapper = mapper;

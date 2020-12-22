@@ -6,9 +6,6 @@
 
 package io.debezium.server.batch;
 
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -17,11 +14,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
-
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -41,15 +40,12 @@ import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Types;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.format.Json;
-import io.debezium.server.BaseChangeConsumer;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -72,20 +68,18 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
     static final PartitionSpec TABLE_PARTITION = PartitionSpec.builderFor(TABLE_SCHEMA).identity("event_destination").day("event_sink_timestamp").build();
     private static final Logger LOGGER = LoggerFactory.getLogger(IcebergEventsChangeConsumer.class);
     private static final String PROP_PREFIX = "debezium.sink.iceberg.";
-
+    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
     @ConfigProperty(name = "debezium.format.value", defaultValue = "json")
     String valueFormat;
     @ConfigProperty(name = "debezium.format.key", defaultValue = "json")
     String keyFormat;
     Configuration hadoopConf = new Configuration();
-    @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL */ , defaultValue = "hadoop")
+    @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL */, defaultValue = "hadoop")
     String catalogImpl;
     @ConfigProperty(name = PROP_PREFIX + "warehouse" /* CatalogProperties.WAREHOUSE_LOCATION */)
     String warehouseLocation;
     @ConfigProperty(name = PROP_PREFIX + "fs.defaultFS")
     String defaultFs;
-    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
-
     @ConfigProperty(name = "debezium.transforms")
     String transforms;
     @ConfigProperty(name = "value.converter.schemas.enable", defaultValue = "false")

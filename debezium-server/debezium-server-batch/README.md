@@ -1,11 +1,8 @@
-
 # Various Debezium Consumers
-
-
 
 ## `s3` Consumer
 
-object names are mapped like 
+object names are mapped like
 
 objectKeyPrefix + destination + "/" + time_daily_partiton + "/" + file_name;
 
@@ -36,8 +33,9 @@ io.debezium.server.batch.keymapper.ObjectKeyMapper = # one of {io.debezium.serve
 ### Batch Record Writers
 
 ##### io.debezium.server.batch.batchwriter.S3JsonBatchRecordWriter
-periodically writes events as jsonlines file to s3
-Custom parameters
+
+periodically writes events as jsonlines file to s3 Custom parameters
+
 ```
 debezium.sink.batch.s3.region = eu-central-1
 debezium.sink.batch.s3.endpointoverride = http://localhost:9000, default:'false'
@@ -47,6 +45,7 @@ debezium.sink.batch.s3.credentials.useinstancecred = false
 ```
 
 recommended object key mappers are
+
 - `io.debezium.server.batch.keymapper.DefaultObjectKeyMapper`
 - `io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper`
 
@@ -61,6 +60,7 @@ io.debezium.server.batch.keymapper.ObjectKeyMapper = {io.debezium.server.batch.k
 ```
 
 the recommended object key mappers are
+
 - `io.debezium.server.batch.keymapper.DefaultObjectKeyMapper`
 - `io.debezium.server.batch.keymapper.TimeBasedDailyObjectKeyMapper`
 
@@ -75,6 +75,7 @@ io.debezium.server.batch.keymapper.ObjectKeyMapper = io.debezium.server.batch.ke
 ```
 
 the recommended object key mappers are
+
 - `io.debezium.server.batch.keymapper.LakeTableObjectKeyMapper`
 
 ## `iceberg` Consumer

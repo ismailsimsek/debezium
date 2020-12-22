@@ -15,14 +15,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
-import com.fasterxml.jackson.databind.JsonNode;
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.format.Json;
-import io.debezium.server.BaseChangeConsumer;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -43,6 +40,13 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -115,7 +119,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
         JsonNode valueJson = jsonDeserializer.deserialize(event.destination(), getBytes(event.value()));
         LOGGER.error(genericRecord.struct().toString());
         // @TODO convert event to json
-        //  @TODO  json to Record
+        // @TODO json to Record
         return genericRecord;
     }
 
@@ -127,9 +131,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                 .collect(Collectors.groupingBy(
                         ChangeEvent::destination,
                         Collectors.mapping(p -> p,
-                                Collectors.toCollection(ArrayList::new)
-                        )
-                ));
+                                Collectors.toCollection(ArrayList::new))));
 
         for (Map.Entry<String, ArrayList<ChangeEvent<Object, Object>>> event : result.entrySet()) {
             Table icebergTable;
@@ -143,7 +145,8 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                 if (ConsumerUtil.hasSchema(sampleEvent) && sampleEvent.has("schema")) {
                     Schema schema = ConsumerUtil.getIcebergSchema(sampleEvent.get("schema"));
                     icebergTable = icebergCatalog.createTable(TableIdentifier.of(event.getKey()), schema);
-                }else{
+                }
+                else {
                     throw new InterruptedException("Iceberg table not found!" + e.getMessage());
                 }
             }

@@ -7,11 +7,9 @@ package io.debezium.server.batch;
 
 import java.util.HashMap;
 import java.util.Map;
-
-import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
-
 import io.debezium.server.TestConfigSource;
 import io.debezium.server.TestDatabase;
+import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
 
 public class ConfigSource extends TestConfigSource {
 
