@@ -26,8 +26,8 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Iterables;
 
-import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 import io.debezium.server.batch.ConsumerUtil;
+import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.

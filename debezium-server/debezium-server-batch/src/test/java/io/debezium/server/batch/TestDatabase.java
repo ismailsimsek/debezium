@@ -10,7 +10,6 @@ import java.util.Collections;
 import java.util.Map;
 
 import org.junit.jupiter.api.Assertions;
-import org.testcontainers.containers.FixedHostPortGenericContainer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 
@@ -33,7 +32,6 @@ public class TestDatabase implements QuarkusTestResourceLifecycleManager {
         try {
 
             container = new GenericContainer<>(POSTGRES_IMAGE)
-                    //.withFixedExposedPort(POSTGRES_PORT, POSTGRES_PORT)
                     .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*", 2))
                     .withEnv("POSTGRES_USER", POSTGRES_USER)
                     .withEnv("POSTGRES_PASSWORD", POSTGRES_PASSWORD)

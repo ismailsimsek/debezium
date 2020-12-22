@@ -9,6 +9,7 @@ package io.debezium.server.batch.batchwriter;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.apache.iceberg.Schema;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
 
@@ -31,10 +32,18 @@ class TestSparkBatchSchemaUtil {
     }
 
     @Test
-    public void testNestedSchema() throws JsonProcessingException {
+    public void testNestedSparkSchema() throws JsonProcessingException {
         StructType s = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
         assertNotNull(s);
         assertTrue(s.catalogString().contains("before:struct<id"));
         assertTrue(s.catalogString().contains("after:struct<id"));
+    }
+
+    @Test
+    public void testNestedIcebergSchema() throws JsonProcessingException {
+        Schema s = ConsumerUtil.getEventIcebergSchema(serdeWithSchema);
+        assertNotNull(s);
+        assertTrue(s.asStruct().toString().contains("before:struct<id"));
+        assertTrue(s.asStruct().toString().contains("after:struct<id"));
     }
 }

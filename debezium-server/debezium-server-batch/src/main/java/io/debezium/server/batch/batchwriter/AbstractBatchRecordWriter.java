@@ -15,8 +15,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
@@ -27,7 +25,9 @@ import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.Files;
 
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
@@ -96,13 +96,13 @@ public abstract class AbstractBatchRecordWriter implements BatchRecordWriter, Au
     public void append(String destination, JsonNode valueJson) throws JsonProcessingException {
 
         if (!map_data.containsKey(destination)) {
-            map_data.put(destination, jsonMapper.writeValueAsString(valueJson).replace("\n",""));
+            map_data.put(destination, jsonMapper.writeValueAsString(valueJson).replace("\n", ""));
             map_batchid.putIfAbsent(destination, 0);
             cdcDb.commit();
             return;
         }
 
-        map_data.put(destination, map_data.get(destination) + IOUtils.LINE_SEPARATOR + jsonMapper.writeValueAsString(valueJson).replace("\n",""));
+        map_data.put(destination, map_data.get(destination) + IOUtils.LINE_SEPARATOR + jsonMapper.writeValueAsString(valueJson).replace("\n", ""));
 
         if (StringUtils.countMatches(map_data.get(destination), IOUtils.LINE_SEPARATOR) >= batchLimit) {
             LOGGER.debug("Batch Row Limit reached Uploading Data, destination:{} batchId:{}", destination, map_batchid.get(destination));

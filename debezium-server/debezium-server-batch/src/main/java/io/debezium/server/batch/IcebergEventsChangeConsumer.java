@@ -20,7 +20,6 @@ import java.util.UUID;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.Dependent;
-import javax.inject.Inject;
 import javax.inject.Named;
 
 import org.apache.hadoop.conf.Configuration;

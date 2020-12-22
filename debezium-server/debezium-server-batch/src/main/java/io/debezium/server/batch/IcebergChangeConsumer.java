@@ -15,24 +15,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
-import com.amazonaws.services.dynamodbv2.model.TableNotFoundException;
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.format.Json;
-import io.debezium.server.BaseChangeConsumer;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
 import org.apache.iceberg.FileFormat;
-import org.apache.iceberg.PartitionSpec;
-import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopCatalog;
@@ -41,13 +35,17 @@ import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
-import org.apache.iceberg.types.Types;
-import static org.apache.iceberg.types.Types.NestedField.optional;
-import static org.apache.iceberg.types.Types.NestedField.required;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.amazonaws.services.dynamodbv2.model.TableNotFoundException;
+
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -112,10 +110,10 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
         icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
 
-        if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
-            icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);
-        }
-        eventTable = icebergCatalog.loadTable(TableIdentifier.of(TABLE_NAME));
+        // if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
+        // icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);
+        // }
+        // eventTable = icebergCatalog.loadTable(TableIdentifier.of(TABLE_NAME));
         // hadoopTables = new HadoopTables(hadoopConf);// do we need this ??
         // @TODO iceberg 11 . make catalog dynamic using catalogImpl parametter!
         // if (catalogImpl != null) {
@@ -124,7 +122,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
     }
 
-    public void loadTable(String destination){
+    public void loadTable(String destination) {
         eventTable = icebergCatalog.loadTable(TableIdentifier.of(destination));
         if (eventTable == null) {
             throw new TableNotFoundException("xxx iceberg exception!");
@@ -145,7 +143,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
     public void handleBatch(List<ChangeEvent<Object, Object>> records, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
         LocalDateTime batchTime = LocalDateTime.now();
-        ConcurrentHashMap<String,ArrayList<Record>> batchData = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, ArrayList<Record>> batchData = new ConcurrentHashMap<>();
         ArrayList<Record> icebergRecords = Lists.newArrayList();
         // GenericRecord icebergRecord = GenericRecord.create(TABLE_SCHEMA);
         int batchId = 0;
@@ -154,7 +152,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
             LOGGER.debug("key===>{}", record.key());
             LOGGER.debug("value===>{}", record.value());
             LOGGER.debug("dest===>{}", record.destination());
-            Map<String, Object> var1 = Maps.newHashMapWithExpectedSize(TABLE_SCHEMA.columns().size());
+            Map<String, Object> var1 = Maps.newHashMapWithExpectedSize(0 /* TABLE_SCHEMA.columns().size() */);
             var1.put("event_destination", record.destination());
             var1.put("event_key", getString(record.key()));
             var1.put("event_key_value", null); // @TODO extract key value!
@@ -167,7 +165,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
             // @TODO add db name
             // @TODO extract value from key and store it - event_key_value!
 
-            icebergRecords.add(icebergRecord.copy(var1));
+            // icebergRecords.add(icebergRecord.copy(var1));
 
             cntNumRows++;
             if (cntNumRows > batchLimit) {

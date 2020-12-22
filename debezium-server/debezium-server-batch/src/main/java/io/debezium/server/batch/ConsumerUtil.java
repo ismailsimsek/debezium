@@ -6,7 +6,10 @@
 
 package io.debezium.server.batch;
 
+import java.util.ArrayList;
 import java.util.List;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.MapType;
@@ -15,8 +18,6 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.iceberg.Schema;
-import org.apache.iceberg.types.Types;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -94,7 +95,7 @@ public class ConsumerUtil {
 
     public static Schema getIcebergSchema(JsonNode eventSchema) {
 
-        Schema icebergSchema = new Schema();
+        List<Types.NestedField> schemaColumns = new ArrayList<>();
 
         String schemaType = eventSchema.get("type").textValue();
         String schemaName = "root";
@@ -107,65 +108,72 @@ public class ConsumerUtil {
             String fieldName = jsonSchemaFieldNode.get("field").textValue();
             String fieldType = jsonSchemaFieldNode.get("type").textValue();
             LOGGER.debug("Processing Field: {}.{}::{}", schemaName, fieldName, fieldType);
-            // for all the debezium data types please see org.apache.kafka.connect.data.Schema;
             switch (fieldType) {
                 case "int8":
                 case "int16":
                 case "int32":
                 case "int64":
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.IntegerType.get()));
+                    LOGGER.error("INT!");
+                    schemaColumns.add(Types.NestedField.optional(schemaColumns.size()+1, fieldName, Types.IntegerType.get()));
                     break;
                 case "float8":
                 case "float16":
                 case "float32":
                 case "float64":
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.FloatType.get()));
+                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.FloatType.get()));
                     break;
                 case "boolean":
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.BooleanType.get()));
+                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.BooleanType.get()));
                     break;
                 case "string":
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.StringType.get()));
+                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
                     break;
                 case "bytes":
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.BinaryType.get()));
+                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.BinaryType.get()));
                     break;
                 case "array":
                     // @TODO
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.StringType.get()));
+                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
                     break;
                 case "map":
-                    // @TODO fix
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.StringType.get()));
-                    //icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.MapType.ofOptional()));
+                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
                     break;
                 case "struct":
                     // recursive call
-                    // @TODO fix
+                    LOGGER.error("struct!");
                     Schema subSchema = ConsumerUtil.getIcebergSchema(jsonSchemaFieldNode);
-                    icebergSchema.columns().add(0, Types.StructType.of(subSchema.columns()));
+                    schemaColumns.add(0, Types.NestedField.optional(0, fieldName, Types.StructType.of(subSchema.columns())));
                     break;
                 default:
                     // default to String type
-                    icebergSchema.columns().add(Types.NestedField.optional(0, fieldName,Types.StringType.get()));
+                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
                     break;
             }
         }
 
-        return icebergSchema;
+        return new Schema(schemaColumns);
 
     }
 
-//    public static StructType getSparkDfSchema(String event) throws JsonProcessingException {
-//        JsonNode jsonNode = new ObjectMapper().readTree(event);
-//
-//        if (jsonNode == null
-//                || !jsonNode.has("fields")
-//                || !jsonNode.get("fields").isArray()) {
-//            return null;
-//        }
-//        return ConsumerUtil.getSparkDfSchema(jsonNode.get("schema"));
-//    }
+    public static Schema getEventIcebergSchema(String event) throws JsonProcessingException {
+        JsonNode jsonNode = new ObjectMapper().readTree(event);
+
+        if (!ConsumerUtil.hasSchema(jsonNode)) {
+            return null;
+        }
+        return ConsumerUtil.getIcebergSchema(jsonNode.get("schema"));
+    }
+
+    // public static StructType getSparkDfSchema(String event) throws JsonProcessingException {
+    // JsonNode jsonNode = new ObjectMapper().readTree(event);
+    //
+    // if (jsonNode == null
+    // || !jsonNode.has("fields")
+    // || !jsonNode.get("fields").isArray()) {
+    // return null;
+    // }
+    // return ConsumerUtil.getSparkDfSchema(jsonNode.get("schema"));
+    // }
 
     public static StructType getEventSparkDfSchema(String event) throws JsonProcessingException {
         JsonNode jsonNode = new ObjectMapper().readTree(event);
@@ -176,10 +184,10 @@ public class ConsumerUtil {
         return ConsumerUtil.getSparkDfSchema(jsonNode.get("schema"));
     }
 
-//    public static boolean hasSchema(String event) throws JsonProcessingException {
-//        JsonNode jsonNode = new ObjectMapper().readTree(event);
-//        return ConsumerUtil.hasSchema(jsonNode);
-//    }
+    // public static boolean hasSchema(String event) throws JsonProcessingException {
+    // JsonNode jsonNode = new ObjectMapper().readTree(event);
+    // return ConsumerUtil.hasSchema(jsonNode);
+    // }
 
     public static boolean hasSchema(JsonNode jsonNode) {
         return jsonNode != null
