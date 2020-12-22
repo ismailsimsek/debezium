@@ -106,14 +106,7 @@ public class TestS3Minio implements QuarkusTestResourceLifecycleManager {
     }
 
     public static void listFiles() {
-        listFiles(null);
-    }
-
-    public static void listFiles(String message) {
         LOGGER.info("-----------------------------------------------------------------");
-        if (message != null) {
-            LOGGER.info("{}", message);
-        }
         try {
             List<Bucket> bucketList = client.listBuckets();
             for (Bucket bucket : bucketList) {

@@ -91,4 +91,5 @@ public class SparkIcebergBatchRecordWriterIT {
         //
         TestS3Minio.listFiles();
     }
+
 }

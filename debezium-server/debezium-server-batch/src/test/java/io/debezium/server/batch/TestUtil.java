@@ -4,7 +4,7 @@
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
 
-package io.debezium.server.batch.batchwriter;
+package io.debezium.server.batch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -19,7 +19,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import io.debezium.server.batch.ConsumerUtil;
 import io.debezium.util.Testing;
 
-class TestSparkBatchSchemaUtil {
+class TestUtil {
 
     final String serdeUpdate = Testing.Files.readResourceAsString("json/serde-update.json");
     final String serdeWithSchema = Testing.Files.readResourceAsString("json/serde-with-schema.json");
