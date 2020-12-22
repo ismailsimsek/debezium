@@ -64,7 +64,7 @@ public class SparkIcebergBatchRecordWriterIT {
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
             // Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
             // s3server.listFiles();
-            return TestS3Minio.getObjectList(ConfigSource.S3_BUCKET).size() >= 16;
+            return TestS3Minio.getIcebergDataFiles(ConfigSource.S3_BUCKET).size() >= 2;
         });
         //
         // SparkIcebergBatchRecordWriter bw = new SparkIcebergBatchRecordWriter(new LakeTableObjectKeyMapper());
