@@ -11,6 +11,9 @@ import java.time.Duration;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 
+import static io.debezium.server.batch.ConfigSource.S3_BUCKET;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
@@ -31,7 +34,7 @@ import io.quarkus.test.junit.QuarkusTest;
 @QuarkusTest
 @QuarkusTestResource(TestS3Minio.class)
 @QuarkusTestResource(TestDatabase.class)
-public class IcebergIT {
+public class IcebergIT extends SparkTestBase{
 
     @Inject
     DebeziumServer server;
@@ -58,35 +61,18 @@ public class IcebergIT {
 
     @Test
     public void testIcebergConsumer() throws Exception {
-        Testing.Print.enable();
+        //Testing.Print.enable();
         Assertions.assertThat(sinkType.equals("iceberg"));
-
+        //TestS3Minio.listFiles();
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            return TestS3Minio.getIcebergDataFiles(ConfigSource.S3_BUCKET).size() >= 2;
+            Dataset<Row> ds = spark.read().format("iceberg")
+                    .load("s3a://test-bucket/iceberg_warehouse/testc.inventory.customers");
+            ds.show();
+            return ds.count()>=4;
         });
-        //
-        // SparkIcebergBatchRecordWriter bw = new SparkIcebergBatchRecordWriter(new LakeTableObjectKeyMapper());
-        //
-        // ObjectMapper objectMapper = new ObjectMapper();
-        // bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
-        // bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
-        // bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
-        // bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
-        // bw.append("table1", objectMapper.readTree("{\"row1\": \"data\"}"));
-        // bw.close();
-        //
-        // Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-        // List<Item> objects = s3server.getObjectList(ConfigSource.S3_BUCKET);
-        // // we expect to see 2 batch files {0,1}
-        // for (Item o : objects) {
-        // if (o.toString().contains("table1") && o.toString().contains("-1.parquet")) {
-        // Testing.print(objects.toString());
-        // return true;
-        // }
-        // }
-        // return false;
-        // });
-        //
+        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
+            return TestS3Minio.getIcebergDataFiles(S3_BUCKET).size() >= 2;
+        });
         TestS3Minio.listFiles();
     }
 }

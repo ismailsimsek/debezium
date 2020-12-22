@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
@@ -104,7 +105,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
         }
 
         if (warehouseLocation == null || warehouseLocation.trim().isEmpty()) {
-            warehouseLocation = defaultFs + "/iceberg/warehouse";
+            warehouseLocation = defaultFs + "/iceberg_warehouse";
         }
 
         icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
@@ -140,8 +141,6 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
             }
             catch (org.apache.iceberg.exceptions.NoSuchTableException e) {
                 JsonNode sampleEvent = jsonDeserializer.deserialize(event.getValue().get(0).destination(), getBytes(event.getValue().get(0).value()));
-                // boolean hasSchema= ConsumerUtil.hasSchema(sampleEvent);
-                LOGGER.error(sampleEvent.toString());
                 if (ConsumerUtil.hasSchema(sampleEvent) && sampleEvent.has("schema")) {
                     Schema schema = ConsumerUtil.getIcebergSchema(sampleEvent.get("schema"));
                     LOGGER.warn("Table '{}' not found creating it!\nSchema:\n{}", TableIdentifier.of(event.getKey()), schema.toString());
@@ -151,16 +150,16 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                     throw new InterruptedException("Iceberg table not found!" + e.getMessage());
                 }
             }
-            // @TODO create table if not exists!
-            // if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
-            // icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);
-            // }
             GenericRecord genericRecord = GenericRecord.create(icebergTable.schema());
             ArrayList<Record> icebergRecords = event.getValue().stream()
                     .map(x -> getIcebergRecord(genericRecord, x))
                     .collect(Collectors.toCollection(ArrayList::new));
 
             commitTable(icebergTable, icebergRecords);
+            // @TODO is order important for commiting single record!!
+            for (ChangeEvent<Object, Object> record : event.getValue()) {
+                committer.markProcessed(record);
+            }
         }
         committer.markBatchFinished();
     }

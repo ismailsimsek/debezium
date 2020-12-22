@@ -44,7 +44,7 @@ public class ConfigSource extends TestConfigSource {
 
         // iceberg
         s3Test.put("debezium.sink.iceberg.fs.defaultFS", "s3a://" + S3_BUCKET);
-        s3Test.put("debezium.sink.iceberg.warehouse", "iceberg_warehouse");
+        s3Test.put("debezium.sink.iceberg.warehouse", "s3a://" + S3_BUCKET+"/iceberg_warehouse");
         s3Test.put("debezium.sink.iceberg.user.timezone", "UTC");
         s3Test.put("debezium.sink.iceberg.com.amazonaws.services.s3.enableV4", "true");
         s3Test.put("debezium.sink.iceberg.com.amazonaws.services.s3a.enableV4", "true");
@@ -73,7 +73,8 @@ public class ConfigSource extends TestConfigSource {
         s3Test.put("debezium.sink.sparkbatch.spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog");
         s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.type", "hadoop");
-        s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.warehouse", "s3a://" + S3_BUCKET + "/spark3_iceberg_catalog");
+        s3Test.put("debezium.sink.sparkbatch.spark.sql.catalog.spark_catalog.warehouse", "s3a://" + S3_BUCKET + "/iceberg_warehouse");
+
         // DEBEZIUM PROP
         s3Test.put("debezium.sink.sparkbatch.spark.delta.logStore.class", "org.apache.spark.sql.delta.storage.S3SingleDriverLogStore");
         // enable disable schema
