@@ -98,4 +98,50 @@ public class S3JsonBatchRecordWriterIT {
 
         TestS3Minio.listFiles();
     }
+
+    /**
+     * Integration test that verifies basic reading from PostgreSQL database and writing to s3.
+     *
+     * @author Ismail Simsek
+     */
+    @QuarkusTest
+    @QuarkusTestResource(TestS3Minio.class)
+    @QuarkusTestResource(TestDatabase.class)
+    public static class IcebergEventsIT {
+        @ConfigProperty(name = "debezium.sink.type")
+        String sinkType;
+        @Inject
+        DebeziumServer server;
+
+        @Inject
+        @ConfigProperty(name = "quarkus.test.resource.minio.port")
+        String minioPort;
+
+        {
+            // Testing.Debug.enable();
+            Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
+            Testing.Files.createTestingFile(ConfigSource.OFFSET_STORE_PATH);
+        }
+
+        void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
+            if (!event.isSuccess()) {
+                throw (Exception) event.getError().get();
+            }
+        }
+
+        @Test
+        public void testIcebergEvents() throws Exception {
+            Testing.printError("====> Minio : " + minioPort);
+            Testing.printError("====> System : " + System.getProperty("quarkus.test.resource.minio.port"));
+            Testing.Print.enable();
+            Assertions.assertThat(sinkType.equals("icebergevents"));
+
+            Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
+                // Testing.printError(s3server.getObjectList(ConfigSource.S3_BUCKET));
+                // s3server.listFiles();
+                return TestS3Minio.getObjectList(ConfigSource.S3_BUCKET).size() >= 9;
+            });
+            TestS3Minio.listFiles();
+        }
+    }
 }

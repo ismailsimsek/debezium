@@ -6,6 +6,7 @@
 
 package io.debezium.server.batch.batchwriter;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,7 +43,10 @@ class TestSparkBatchSchemaUtil {
     @Test
     public void testNestedIcebergSchema() throws JsonProcessingException {
         Schema s = ConsumerUtil.getEventIcebergSchema(serdeWithSchema);
+        StructType ss = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
         assertNotNull(s);
+        assert ss != null;
+        assertEquals(s.asStruct().toString(),ss.catalogString());
         assertTrue(s.asStruct().toString().contains("before:struct<id"));
         assertTrue(s.asStruct().toString().contains("after:struct<id"));
     }

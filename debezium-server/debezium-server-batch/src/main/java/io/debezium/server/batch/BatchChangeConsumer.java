@@ -61,6 +61,8 @@ public class BatchChangeConsumer extends BaseChangeConsumer implements DebeziumE
     @ConfigProperty(name = "debezium.sink.batch.batchwriter")
     String customBatchWriter;
 
+    JsonDeserializer jsonDeserializer = new JsonDeserializer();
+
     @PreDestroy
     void close() {
         try {
@@ -117,7 +119,6 @@ public class BatchChangeConsumer extends BaseChangeConsumer implements DebeziumE
             throws InterruptedException {
         try {
             for (ChangeEvent<Object, Object> record : records) {
-                JsonDeserializer jsonDeserializer = new JsonDeserializer();
                 JsonNode valueJson = jsonDeserializer.deserialize(record.destination(), getBytes(record.value()));
                 batchWriter.append(record.destination(), valueJson);
                 // committer.markProcessed(record);

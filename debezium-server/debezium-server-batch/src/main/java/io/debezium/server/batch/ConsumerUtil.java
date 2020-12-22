@@ -8,6 +8,10 @@ package io.debezium.server.batch;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -18,12 +22,6 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -94,6 +92,10 @@ public class ConsumerUtil {
     }
 
     public static Schema getIcebergSchema(JsonNode eventSchema) {
+        return getIcebergSchema(eventSchema, 0);
+    }
+
+    public static Schema getIcebergSchema(JsonNode eventSchema, int columnId) {
 
         List<Types.NestedField> schemaColumns = new ArrayList<>();
 
@@ -107,48 +109,48 @@ public class ConsumerUtil {
         for (JsonNode jsonSchemaFieldNode : eventSchema.get("fields")) {
             String fieldName = jsonSchemaFieldNode.get("field").textValue();
             String fieldType = jsonSchemaFieldNode.get("type").textValue();
-            LOGGER.debug("Processing Field: {}.{}::{}", schemaName, fieldName, fieldType);
+            LOGGER.debug("Processing Field: [{}]{}.{}::{}", columnId, schemaName, fieldName, fieldType);
             switch (fieldType) {
                 case "int8":
                 case "int16":
                 case "int32":
                 case "int64":
-                    LOGGER.error("INT!");
-                    schemaColumns.add(Types.NestedField.optional(schemaColumns.size()+1, fieldName, Types.IntegerType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.IntegerType.get()));
                     break;
                 case "float8":
                 case "float16":
                 case "float32":
                 case "float64":
-                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.FloatType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.FloatType.get()));
                     break;
                 case "boolean":
-                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.BooleanType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.BooleanType.get()));
                     break;
                 case "string":
-                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StringType.get()));
                     break;
                 case "bytes":
-                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.BinaryType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.BinaryType.get()));
                     break;
                 case "array":
                     // @TODO
-                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StringType.get()));
                     break;
                 case "map":
-                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StringType.get()));
                     break;
                 case "struct":
                     // recursive call
-                    LOGGER.error("struct!");
-                    Schema subSchema = ConsumerUtil.getIcebergSchema(jsonSchemaFieldNode);
-                    schemaColumns.add(0, Types.NestedField.optional(0, fieldName, Types.StructType.of(subSchema.columns())));
+                    Schema subSchema = ConsumerUtil.getIcebergSchema(jsonSchemaFieldNode, columnId);
+                    columnId += subSchema.columns().size();
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StructType.of(subSchema.columns())));
                     break;
                 default:
                     // default to String type
-                    schemaColumns.add(Types.NestedField.optional(0, fieldName, Types.StringType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StringType.get()));
                     break;
             }
+            columnId++;
         }
 
         return new Schema(schemaColumns);

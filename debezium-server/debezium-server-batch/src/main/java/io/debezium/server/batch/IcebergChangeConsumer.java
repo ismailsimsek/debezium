@@ -15,11 +15,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-
+import java.util.stream.Collectors;
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
-
+import com.fasterxml.jackson.databind.JsonNode;
+import io.debezium.engine.ChangeEvent;
+import io.debezium.engine.DebeziumEngine;
+import io.debezium.engine.format.Json;
+import io.debezium.server.BaseChangeConsumer;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -27,6 +32,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopCatalog;
@@ -34,18 +40,11 @@ import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
-import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.kafka.connect.json.JsonDeserializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.amazonaws.services.dynamodbv2.model.TableNotFoundException;
-
-import io.debezium.engine.ChangeEvent;
-import io.debezium.engine.DebeziumEngine;
-import io.debezium.engine.format.Json;
-import io.debezium.server.BaseChangeConsumer;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -58,20 +57,18 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
     private static final Logger LOGGER = LoggerFactory.getLogger(IcebergChangeConsumer.class);
     private static final String PROP_PREFIX = "debezium.sink.iceberg.";
-
+    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
     @ConfigProperty(name = "debezium.format.value", defaultValue = "json")
     String valueFormat;
     @ConfigProperty(name = "debezium.format.key", defaultValue = "json")
     String keyFormat;
     Configuration hadoopConf = new Configuration();
-    @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL */ , defaultValue = "hadoop")
+    @ConfigProperty(name = PROP_PREFIX + "catalog-impl" /* CatalogProperties.CATALOG_IMPL */, defaultValue = "hadoop")
     String catalogImpl;
     @ConfigProperty(name = PROP_PREFIX + "warehouse" /* CatalogProperties.WAREHOUSE_LOCATION */)
     String warehouseLocation;
     @ConfigProperty(name = PROP_PREFIX + "fs.defaultFS")
     String defaultFs;
-    final Integer batchLimit = ConfigProvider.getConfig().getOptionalValue("debezium.sink.batch.row.limit", Integer.class).orElse(500);
-
     @ConfigProperty(name = "debezium.transforms")
     String transforms;
     @ConfigProperty(name = "value.converter.schemas.enable", defaultValue = "false")
@@ -85,7 +82,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
     String databaseName;
 
     Catalog icebergCatalog;
-    Table eventTable;
+    JsonDeserializer jsonDeserializer = new JsonDeserializer();
 
     @PostConstruct
     void connect() throws InterruptedException {
@@ -109,12 +106,6 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
         }
 
         icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
-
-        // if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
-        // icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);
-        // }
-        // eventTable = icebergCatalog.loadTable(TableIdentifier.of(TABLE_NAME));
-        // hadoopTables = new HadoopTables(hadoopConf);// do we need this ??
         // @TODO iceberg 11 . make catalog dynamic using catalogImpl parametter!
         // if (catalogImpl != null) {
         // icebergCatalog = CatalogUtil.loadCatalog(catalogImpl, name, options, hadoopConf);
@@ -122,76 +113,51 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
     }
 
-    public void loadTable(String destination) {
-        eventTable = icebergCatalog.loadTable(TableIdentifier.of(destination));
-        if (eventTable == null) {
-            throw new TableNotFoundException("xxx iceberg exception!");
-        }
+    public Record getIcebergRecord(GenericRecord genericRecord, ChangeEvent<Object, Object> event) {
+        JsonNode valueJson = jsonDeserializer.deserialize(event.destination(), getBytes(event.value()));
+        LOGGER.error(genericRecord.struct().toString());
+        // @TODO convert event to json
+        //  @TODO  json to Record
+        return genericRecord;
     }
-
-    // @PreDestroy
-    // void close() {
-    // // try {
-    // // s3client.close();
-    // // }
-    // // catch (Exception e) {
-    // // LOGGER.error("Exception while closing S3 client: ", e);
-    // // }
-    // }
 
     @Override
     public void handleBatch(List<ChangeEvent<Object, Object>> records, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
-        LocalDateTime batchTime = LocalDateTime.now();
-        ConcurrentHashMap<String, ArrayList<Record>> batchData = new ConcurrentHashMap<>();
-        ArrayList<Record> icebergRecords = Lists.newArrayList();
-        // GenericRecord icebergRecord = GenericRecord.create(TABLE_SCHEMA);
-        int batchId = 0;
-        int cntNumRows = 0;
-        for (ChangeEvent<Object, Object> record : records) {
-            LOGGER.debug("key===>{}", record.key());
-            LOGGER.debug("value===>{}", record.value());
-            LOGGER.debug("dest===>{}", record.destination());
-            Map<String, Object> var1 = Maps.newHashMapWithExpectedSize(0 /* TABLE_SCHEMA.columns().size() */);
-            var1.put("event_destination", record.destination());
-            var1.put("event_key", getString(record.key()));
-            var1.put("event_key_value", null); // @TODO extract key value!
-            var1.put("event_value", getString(record.value()));
-            var1.put("event_value_format", valueFormat);
-            var1.put("event_key_format", keyFormat);
-            var1.put("event_sink_timestamp", LocalDateTime.now().atOffset(ZoneOffset.UTC));
-            // @TODO add schema enabled flags! for key and value!
-            // @TODO add flattened flag SMT unwrap!
-            // @TODO add db name
-            // @TODO extract value from key and store it - event_key_value!
 
-            // icebergRecords.add(icebergRecord.copy(var1));
+        Map<String, ArrayList<ChangeEvent<Object, Object>>> result = records.stream()
+                .collect(Collectors.groupingBy(
+                        ChangeEvent::destination,
+                        Collectors.mapping(p -> p,
+                                Collectors.toCollection(ArrayList::new)
+                        )
+                ));
 
-            cntNumRows++;
-            if (cntNumRows > batchLimit) {
-                commitBatch(icebergRecords, batchTime, batchId);
-                cntNumRows = 0;
-                batchId++;
-                icebergRecords.clear();
-            }
-            // committer.markProcessed(record);
+        for (Map.Entry<String, ArrayList<ChangeEvent<Object, Object>>> event : result.entrySet()) {
+            Table icebergTable = icebergCatalog.loadTable(TableIdentifier.of(event.getKey()));
+            // @TODO create table if not exists!
+            // if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
+            // icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);
+            // }
+            GenericRecord genericRecord = GenericRecord.create(icebergTable.schema());
+            ArrayList<Record> icebergRecords = event.getValue().stream()
+                    .map(x -> getIcebergRecord(genericRecord,x))
+                    .collect(Collectors.toCollection(ArrayList::new));
+
+            commitTable(icebergTable, icebergRecords);
         }
-        commitBatch(icebergRecords, batchTime, batchId);
-        icebergRecords.clear();
         committer.markBatchFinished();
     }
 
-    private void commitBatch(ArrayList<Record> icebergRecords, LocalDateTime batchTime, int batchId) throws InterruptedException {
-        // @TODO loop batchData and commit!
-        // @TODO create transaction!
-        final String fileName = UUID.randomUUID() + "-" + batchTime.toEpochSecond(ZoneOffset.UTC) + "-" + batchId + "." + FileFormat.PARQUET.toString().toLowerCase();
-        OutputFile out = eventTable.io().newOutputFile(eventTable.locationProvider().newDataLocation(fileName));
+    private void commitTable(Table icebergTable, ArrayList<Record> icebergRecords) throws InterruptedException {
+        final String fileName = UUID.randomUUID() + "-" + LocalDateTime.now().toEpochSecond(ZoneOffset.UTC) + "-" + 0 + "." + FileFormat.PARQUET.toString().toLowerCase();
+        OutputFile out = icebergTable.io().newOutputFile(icebergTable.locationProvider().newDataLocation(fileName));
 
         FileAppender<Record> writer = null;
         try {
             writer = Parquet.write(out)
                     .createWriterFunc(GenericParquetWriter::buildWriter)
-                    .forTable(eventTable)
+                    .forTable(icebergTable)
                     .overwrite()
                     .build();
 
@@ -205,7 +171,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
             throw new InterruptedException(e.getMessage());
         }
 
-        DataFile dataFile = DataFiles.builder(eventTable.spec())
+        DataFile dataFile = DataFiles.builder(icebergTable.spec())
                 .withFormat(FileFormat.PARQUET)
                 .withPath(out.location())
                 .withFileSizeInBytes(writer.length())
@@ -213,11 +179,12 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                 .withMetrics(writer.metrics())
                 .build();
 
+        // @TODO commit all files/TABLES at once! together! possible?
         LOGGER.debug("Appending new file '{}' !", dataFile.path());
-        eventTable.newAppend()
+        icebergTable.newAppend()
                 .appendFile(dataFile)
                 .commit();
-        LOGGER.info("Committed events to table! {}", eventTable.location());
+        LOGGER.info("Committed events to table! {}", icebergTable.location());
     }
 
 }
