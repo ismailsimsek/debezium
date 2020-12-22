@@ -27,7 +27,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Iterables;
 
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
-import io.debezium.server.batch.util.SparkSchemaUtil;
+import io.debezium.server.batch.ConsumerUtil;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -81,7 +81,7 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
 
     void setReaderSchema(DataFrameReader dfReader, String event) {
         try {
-            StructType schema = SparkSchemaUtil.getEventSparkDfSchema(event);
+            StructType schema = ConsumerUtil.getEventSparkDfSchema(event);
             if (schema == null || schema.isEmpty()) {
                 return;
             }

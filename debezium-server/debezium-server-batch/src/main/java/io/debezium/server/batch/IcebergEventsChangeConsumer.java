@@ -123,9 +123,7 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
             warehouseLocation = defaultFs + "/iceberg/warehouse";
         }
 
-        LOGGER.error("creating ctalog");
         icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
-        LOGGER.error("created ctalog");
 
         if (!icebergCatalog.tableExists(TableIdentifier.of(TABLE_NAME))) {
             icebergCatalog.createTable(TableIdentifier.of(TABLE_NAME), TABLE_SCHEMA, TABLE_PARTITION);

@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 
-import io.debezium.server.batch.util.SparkSchemaUtil;
+import io.debezium.server.batch.ConsumerUtil;
 import io.debezium.util.Testing;
 
 class TestSparkBatchSchemaUtil {
@@ -25,14 +25,14 @@ class TestSparkBatchSchemaUtil {
 
     @Test
     public void testSimpleSchema() throws JsonProcessingException {
-        StructType s = SparkSchemaUtil.getEventSparkDfSchema(unwrapWithSchema);
+        StructType s = ConsumerUtil.getEventSparkDfSchema(unwrapWithSchema);
         assertNotNull(s);
         assertTrue(s.catalogString().contains("id:int,order_date:int,purchaser:int,quantity:int,product_id:int,__op:string"));
     }
 
     @Test
     public void testNestedSchema() throws JsonProcessingException {
-        StructType s = SparkSchemaUtil.getEventSparkDfSchema(serdeWithSchema);
+        StructType s = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
         assertNotNull(s);
         assertTrue(s.catalogString().contains("before:struct<id"));
         assertTrue(s.catalogString().contains("after:struct<id"));
