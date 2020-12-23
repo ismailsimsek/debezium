@@ -122,6 +122,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
         LOGGER.error("SCHEMA={}",genericRecord.struct().toString());
         LOGGER.error("VAL={}",event.value().toString());
         Map<String, String> map = new HashMap<>();
+        // @TODO loop using schema!
         //addKeys("", valueJson, map, new ArrayList<>());
         // valueJson.isContainerNode(); struct!
 

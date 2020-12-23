@@ -107,9 +107,10 @@ public class ConsumerUtil {
         LOGGER.debug("Converting Schema of: {}::{}", schemaName, schemaType);
 
         for (JsonNode jsonSchemaFieldNode : eventSchema.get("fields")) {
-            String fieldName = schemaName.isEmpty()
-                    ? jsonSchemaFieldNode.get("field").textValue()
-                    : schemaName + "_" + jsonSchemaFieldNode.get("field").textValue();
+//            String fieldName = schemaName.isEmpty()
+//                    ? jsonSchemaFieldNode.get("field").textValue()
+//                    : schemaName + "_" + jsonSchemaFieldNode.get("field").textValue();
+            String fieldName = jsonSchemaFieldNode.get("field").textValue();
             String fieldType = jsonSchemaFieldNode.get("type").textValue();
             LOGGER.debug("Processing Field: [{}] {}::{}", columnId, fieldName, fieldType);
             switch (fieldType) {

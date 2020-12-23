@@ -45,6 +45,9 @@ class TestUtil {
         // StructType ss = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
         //assertNotNull(s);
         //assert ss != null;
+
+        assertEquals(s.findField("ts_ms").fieldId(), 26);
+        assertEquals(s.findField(7).name(), 7);
         assertEquals(s.asStruct().toString(), "xx");
         assertTrue(s.asStruct().toString().contains("before:struct<id"));
         assertTrue(s.asStruct().toString().contains("after:struct<id"));
