@@ -8,7 +8,10 @@ package io.debezium.server.batch;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -19,12 +22,6 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -95,24 +92,26 @@ public class ConsumerUtil {
     }
 
     public static Schema getIcebergSchema(JsonNode eventSchema) {
-        return getIcebergSchema(eventSchema, 0);
+        return getIcebergSchema(eventSchema, "", 0);
     }
 
-    public static Schema getIcebergSchema(JsonNode eventSchema, int columnId) {
+    public static Schema getIcebergSchema(JsonNode eventSchema, String schemaName, int columnId) {
 
         List<Types.NestedField> schemaColumns = new ArrayList<>();
 
         String schemaType = eventSchema.get("type").textValue();
-        String schemaName = "root";
-        if (eventSchema.has("field")) {
-            schemaName = eventSchema.get("field").textValue();
-        }
+        //String schemaName = "";
+        //if (eventSchema.has("field")) {
+        //    schemaName = eventSchema.get("field").textValue();
+        //}
         LOGGER.debug("Converting Schema of: {}::{}", schemaName, schemaType);
 
         for (JsonNode jsonSchemaFieldNode : eventSchema.get("fields")) {
-            String fieldName = jsonSchemaFieldNode.get("field").textValue();
+            String fieldName = schemaName.isEmpty()
+                    ? jsonSchemaFieldNode.get("field").textValue()
+                    : schemaName + "_" + jsonSchemaFieldNode.get("field").textValue();
             String fieldType = jsonSchemaFieldNode.get("type").textValue();
-            LOGGER.debug("Processing Field: [{}]{}.{}::{}", columnId, schemaName, fieldName, fieldType);
+            LOGGER.debug("Processing Field: [{}] {}::{}", columnId, fieldName, fieldType);
             switch (fieldType) {
                 case "int8":
                 case "int16":
@@ -144,7 +143,7 @@ public class ConsumerUtil {
                     break;
                 case "struct":
                     // recursive call
-                    Schema subSchema = ConsumerUtil.getIcebergSchema(jsonSchemaFieldNode, columnId);
+                    Schema subSchema = ConsumerUtil.getIcebergSchema(jsonSchemaFieldNode, fieldName, columnId);
                     columnId += subSchema.columns().size();
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StructType.of(subSchema.columns())));
                     break;
