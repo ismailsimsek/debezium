@@ -37,6 +37,7 @@ import org.apache.iceberg.hadoop.HadoopCatalog;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.types.Types;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -117,21 +118,26 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
     }
 
-    public Record getIcebergRecord(GenericRecord genericRecord, ChangeEvent<Object, Object> event) {
-        JsonNode valueJson = jsonDeserializer.deserialize(event.destination(), getBytes(event.value()));
-        LOGGER.error("SCHEMA={}",genericRecord.struct().toString());
-        LOGGER.error("VAL={}",event.value().toString());
+    public GenericRecord getIcebergRecord(Schema schema, JsonNode data /* ChangeEvent<Object, Object> event */) {
+        // JsonNode valueJson = jsonDeserializer.deserialize(event.destination(), getBytes(event.value()));
+        // LOGGER.error("SCHEMA={}",genericRecord.struct().toString());
+        // LOGGER.error("VAL={}",event.value().toString());
+        GenericRecord genericRecord = GenericRecord.create(schema);
         Map<String, String> map = new HashMap<>();
+        // genericRecord.copy();
         // @TODO loop using schema!
         //addKeys("", valueJson, map, new ArrayList<>());
         // valueJson.isContainerNode(); struct!
+        for (Types.NestedField f : schema.columns()) {
+            LOGGER.error("{}, {}, {}", f.type(), f.name(), f.toString());
+        }
+        LOGGER.error(schema.getAliases().toString());
+        LOGGER.error(data.toString());
 
-        map.entrySet()
-                .forEach(System.out::println);
-
+        // map.entrySet().forEach(System.out::println);
         // @TODO convert event to json
         // @TODO json to Record
-        return genericRecord;
+        return genericRecord.copy();
     }
 
     @Override
@@ -146,6 +152,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
         for (Map.Entry<String, ArrayList<ChangeEvent<Object, Object>>> event : result.entrySet()) {
             Table icebergTable;
+            final Schema tableSchema;
             try {
                 icebergTable = icebergCatalog.loadTable(TableIdentifier.of(event.getKey()));
             }
@@ -160,9 +167,11 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                     throw new InterruptedException("Iceberg table not found!" + e.getMessage());
                 }
             }
-            GenericRecord genericRecord = GenericRecord.create(icebergTable.schema());
+            // GenericRecord genericRecord = GenericRecord.create(icebergTable.schema());
+            // JsonNode valueJson = jsonDeserializer.deserialize(event.destination(), getBytes(event.value()));
+            tableSchema = icebergTable.schema();
             ArrayList<Record> icebergRecords = event.getValue().stream()
-                    .map(x -> getIcebergRecord(genericRecord, x))
+                    .map(e -> getIcebergRecord(tableSchema, jsonDeserializer.deserialize(e.destination(), getBytes(e.value()))))
                     .collect(Collectors.toCollection(ArrayList::new));
 
             commitTable(icebergTable, icebergRecords);

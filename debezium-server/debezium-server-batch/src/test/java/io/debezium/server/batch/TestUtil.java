@@ -6,6 +6,7 @@
 
 package io.debezium.server.batch;
 
+import org.apache.iceberg.types.Types;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -17,9 +18,12 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
 import io.debezium.util.Testing;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class TestUtil {
 
+    protected static final Logger LOGGER = LoggerFactory.getLogger(TestUtil.class);
     final String serdeUpdate = Testing.Files.readResourceAsString("json/serde-update.json");
     final String serdeWithSchema = Testing.Files.readResourceAsString("json/serde-with-schema.json");
     final String unwrapWithSchema = Testing.Files.readResourceAsString("json/unwrap-with-schema.json");
@@ -47,9 +51,20 @@ class TestUtil {
         //assert ss != null;
 
         assertEquals(s.findField("ts_ms").fieldId(), 26);
-        assertEquals(s.findField(7).name(), 7);
+        assertEquals(s.findField(7).name(), "last_name");
         assertEquals(s.asStruct().toString(), "xx");
         assertTrue(s.asStruct().toString().contains("before:struct<id"));
         assertTrue(s.asStruct().toString().contains("after:struct<id"));
+    }
+
+    @Test
+    public void testNestedIcebergSchemaLoop() throws JsonProcessingException {
+        Schema s = ConsumerUtil.getEventIcebergSchema(serdeWithSchema);
+        LOGGER.error(s.getAliases().toString());
+        LOGGER.error(s.columns().toString());
+        assert s != null;
+        for (Types.NestedField f : s.columns()) {
+            LOGGER.error("{}, {}, {}", f.type(), f.name(), f.doc());
+        }
     }
 }
