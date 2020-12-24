@@ -47,14 +47,12 @@ class TestUtil {
     public void testNestedIcebergSchema() throws JsonProcessingException {
         Schema s = ConsumerUtil.getEventIcebergSchema(serdeWithSchema);
         // StructType ss = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
-        //assertNotNull(s);
-        //assert ss != null;
-
+        assertNotNull(s);
         assertEquals(s.findField("ts_ms").fieldId(), 26);
         assertEquals(s.findField(7).name(), "last_name");
-        assertEquals(s.asStruct().toString(), "xx");
-        assertTrue(s.asStruct().toString().contains("before:struct<id"));
-        assertTrue(s.asStruct().toString().contains("after:struct<id"));
+        assertTrue(s.asStruct().toString().contains("source: optional struct<"));
+        assertTrue(s.asStruct().toString().contains("after: optional struct<"));
+        s = ConsumerUtil.getEventIcebergSchema(unwrapWithSchema);
     }
 
     @Test

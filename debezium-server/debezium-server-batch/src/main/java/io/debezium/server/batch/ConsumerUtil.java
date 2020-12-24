@@ -116,15 +116,19 @@ public class ConsumerUtil {
             switch (fieldType) {
                 case "int8":
                 case "int16":
-                case "int32":
-                case "int64":
+                case "int32": // int 	4 bytes
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.IntegerType.get()));
+                    break;
+                case "int64": // long 	8 bytes
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.LongType.get()));
                     break;
                 case "float8":
                 case "float16":
-                case "float32":
-                case "float64":
+                case "float32": // float is represented in 32 bits,
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.FloatType.get()));
+                    break;
+                case "float64": // double is represented in 64 bits
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.DoubleType.get()));
                     break;
                 case "boolean":
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.BooleanType.get()));
@@ -140,6 +144,7 @@ public class ConsumerUtil {
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StringType.get()));
                     break;
                 case "map":
+                    // @TODO
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StringType.get()));
                     break;
                 case "struct":
