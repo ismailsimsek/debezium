@@ -92,27 +92,19 @@ public class SchemaUtil {
     }
 
     public static Schema getIcebergSchema(JsonNode eventSchema) {
-        return getIcebergSchema(eventSchema, "", 0);
+        LOGGER.debug(eventSchema.toString());
+        return getIcebergSchema(eventSchema, "", -1);
     }
 
     public static Schema getIcebergSchema(JsonNode eventSchema, String schemaName, int columnId) {
-
         List<Types.NestedField> schemaColumns = new ArrayList<>();
-
         String schemaType = eventSchema.get("type").textValue();
-        //String schemaName = "";
-        //if (eventSchema.has("field")) {
-        //    schemaName = eventSchema.get("field").textValue();
-        //}
-        LOGGER.debug("Converting Schema of: {}::{}", schemaName, schemaType);
-
+        // LOGGER.debug("Converting Schema of: {}::{}", schemaName, schemaType);
         for (JsonNode jsonSchemaFieldNode : eventSchema.get("fields")) {
-//            String fieldName = schemaName.isEmpty()
-//                    ? jsonSchemaFieldNode.get("field").textValue()
-//                    : schemaName + "_" + jsonSchemaFieldNode.get("field").textValue();
+            columnId++;
             String fieldName = jsonSchemaFieldNode.get("field").textValue();
             String fieldType = jsonSchemaFieldNode.get("type").textValue();
-            LOGGER.debug("Processing Field: [{}] {}::{}", columnId, fieldName, fieldType);
+            LOGGER.debug("Processing Field: [{}] {}.{}::{}", columnId, schemaName, fieldName, fieldType);
             switch (fieldType) {
                 case "int8":
                 case "int16":
@@ -149,20 +141,17 @@ public class SchemaUtil {
                     break;
                 case "struct":
                     // recursive call
-                    Schema subSchema = SchemaUtil.getIcebergSchema(jsonSchemaFieldNode, fieldName, columnId);
-                    columnId += subSchema.columns().size();
+                    Schema subSchema = SchemaUtil.getIcebergSchema(jsonSchemaFieldNode, fieldName, ++columnId);
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StructType.of(subSchema.columns())));
+                    columnId += subSchema.columns().size();
                     break;
                 default:
                     // default to String type
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StringType.get()));
                     break;
             }
-            columnId++;
         }
-
         return new Schema(schemaColumns);
-
     }
 
     public static Schema getEventIcebergSchema(String event) throws JsonProcessingException {

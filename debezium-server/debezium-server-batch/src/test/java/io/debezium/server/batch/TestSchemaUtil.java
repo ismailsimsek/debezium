@@ -6,6 +6,7 @@
 
 package io.debezium.server.batch;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.iceberg.types.Types;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -21,11 +22,12 @@ import io.debezium.util.Testing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class TestUtil {
+class TestSchemaUtil {
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(TestUtil.class);
+    protected static final Logger LOGGER = LoggerFactory.getLogger(TestSchemaUtil.class);
     final String serdeUpdate = Testing.Files.readResourceAsString("json/serde-update.json");
     final String serdeWithSchema = Testing.Files.readResourceAsString("json/serde-with-schema.json");
+    final String serdeWithSchema2 = Testing.Files.readResourceAsString("json/serde-with-schema2.json");
     final String unwrapWithSchema = Testing.Files.readResourceAsString("json/unwrap-with-schema.json");
 
     @Test
@@ -56,13 +58,12 @@ class TestUtil {
     }
 
     @Test
-    public void testNestedIcebergSchemaLoop() throws JsonProcessingException {
-        Schema s = SchemaUtil.getEventIcebergSchema(serdeWithSchema);
-        LOGGER.error(s.getAliases().toString());
-        LOGGER.error(s.columns().toString());
+    public void testNestedIcebergSchema2() throws JsonProcessingException {
+        Schema s = SchemaUtil.getIcebergSchema(new ObjectMapper().readTree(serdeWithSchema2));
+        LOGGER.error("==> {}",s);
         assert s != null;
-        for (Types.NestedField f : s.columns()) {
-            LOGGER.error("{}, {}, {}", f.type(), f.name(), f.doc());
-        }
+        assertEquals(s.asStruct().toString(), "xx");
+        assertTrue(s.asStruct().toString().contains("source: optional struct<"));
+        assertTrue(s.asStruct().toString().contains("source: optional struct<"));
     }
 }
