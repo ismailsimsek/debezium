@@ -125,6 +125,9 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
     public GenericRecord getIcebergRecord(Schema schema, JsonNode data) {
         Map<String, Object> mappedResult = jsonObjectMapper.convertValue(data.get("payload"), new TypeReference<Map<String, Object>>(){});
+        LOGGER.error("RECORD DATA=>\n{}",data);
+        LOGGER.error("RECORD DATA PAYLOAD=>\n{}",data.get("payload"));
+        LOGGER.error("RECORD =>\n{}",GenericRecord.create(schema).copy(mappedResult));
         return GenericRecord.create(schema).copy(mappedResult);
     }
 
@@ -152,6 +155,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
                     icebergTable = icebergCatalog.createTable(TableIdentifier.of(event.getKey()), schema);
                 }
                 else {
+                    e.printStackTrace();
                     throw new InterruptedException("Iceberg table not found!" + e.getMessage());
                 }
             }

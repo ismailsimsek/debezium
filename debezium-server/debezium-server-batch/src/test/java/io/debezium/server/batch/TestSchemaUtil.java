@@ -50,8 +50,8 @@ class TestSchemaUtil {
         Schema s = SchemaUtil.getEventIcebergSchema(serdeWithSchema);
         // StructType ss = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
         assertNotNull(s);
-        assertEquals(s.findField("ts_ms").fieldId(), 26);
-        assertEquals(s.findField(7).name(), "last_name");
+        assertEquals(s.findField("ts_ms").fieldId(), 29);
+        assertEquals(s.findField(7).name(), "after");
         assertTrue(s.asStruct().toString().contains("source: optional struct<"));
         assertTrue(s.asStruct().toString().contains("after: optional struct<"));
         s = SchemaUtil.getEventIcebergSchema(unwrapWithSchema);
@@ -60,10 +60,9 @@ class TestSchemaUtil {
     @Test
     public void testNestedIcebergSchema2() throws JsonProcessingException {
         Schema s = SchemaUtil.getIcebergSchema(new ObjectMapper().readTree(serdeWithSchema2));
-        LOGGER.error("==> {}",s);
-        assert s != null;
-        assertEquals(s.asStruct().toString(), "xx");
+        // assertEquals(s.asStruct().toString(), "xx");
         assertTrue(s.asStruct().toString().contains("source: optional struct<"));
-        assertTrue(s.asStruct().toString().contains("source: optional struct<"));
+        assertTrue(s.asStruct().toString().contains("after: optional struct<"));
+        LOGGER.error("{}",s);
     }
 }
