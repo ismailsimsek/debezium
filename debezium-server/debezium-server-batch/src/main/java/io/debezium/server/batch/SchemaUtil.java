@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Ismail Simsek
  */
-public class ConsumerUtil {
+public class SchemaUtil {
     protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractBatchRecordWriter.class);
 
     public static StructType getSparkDfSchema(JsonNode eventSchema) {
@@ -77,7 +77,7 @@ public class ConsumerUtil {
                     break;
                 case "struct":
                     // recursive call
-                    StructType subSchema = ConsumerUtil.getSparkDfSchema(jsonSchemaFieldNode);
+                    StructType subSchema = SchemaUtil.getSparkDfSchema(jsonSchemaFieldNode);
                     sparkSchema = sparkSchema.add(new StructField(fieldName, subSchema, true, Metadata.empty()));
                     break;
                 default:
@@ -117,7 +117,7 @@ public class ConsumerUtil {
                 case "int8":
                 case "int16":
                 case "int32": // int 	4 bytes
-                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.IntegerType.get()));
+                    schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.LongType.get()));
                     break;
                 case "int64": // long 	8 bytes
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.LongType.get()));
@@ -149,7 +149,7 @@ public class ConsumerUtil {
                     break;
                 case "struct":
                     // recursive call
-                    Schema subSchema = ConsumerUtil.getIcebergSchema(jsonSchemaFieldNode, fieldName, columnId);
+                    Schema subSchema = SchemaUtil.getIcebergSchema(jsonSchemaFieldNode, fieldName, columnId);
                     columnId += subSchema.columns().size();
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.StructType.of(subSchema.columns())));
                     break;
@@ -168,10 +168,10 @@ public class ConsumerUtil {
     public static Schema getEventIcebergSchema(String event) throws JsonProcessingException {
         JsonNode jsonNode = new ObjectMapper().readTree(event);
 
-        if (!ConsumerUtil.hasSchema(jsonNode)) {
+        if (!SchemaUtil.hasSchema(jsonNode)) {
             return null;
         }
-        return ConsumerUtil.getIcebergSchema(jsonNode.get("schema"));
+        return SchemaUtil.getIcebergSchema(jsonNode.get("schema"));
     }
 
     // public static StructType getSparkDfSchema(String event) throws JsonProcessingException {
@@ -188,10 +188,10 @@ public class ConsumerUtil {
     public static StructType getEventSparkDfSchema(String event) throws JsonProcessingException {
         JsonNode jsonNode = new ObjectMapper().readTree(event);
 
-        if (!ConsumerUtil.hasSchema(jsonNode)) {
+        if (!SchemaUtil.hasSchema(jsonNode)) {
             return null;
         }
-        return ConsumerUtil.getSparkDfSchema(jsonNode.get("schema"));
+        return SchemaUtil.getSparkDfSchema(jsonNode.get("schema"));
     }
 
     // public static boolean hasSchema(String event) throws JsonProcessingException {

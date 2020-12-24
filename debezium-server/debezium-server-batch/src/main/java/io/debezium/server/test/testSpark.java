@@ -9,6 +9,7 @@ package io.debezium.server.test;
 import java.util.Arrays;
 import java.util.List;
 
+import io.debezium.server.batch.JsonDeserializer;
 import org.apache.commons.io.IOUtils;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
@@ -23,6 +24,9 @@ public class testSpark {
 
     public static void main(String[] args) {
         Logger LOGGER = LoggerFactory.getLogger(testSpark.class);
+
+        org.apache.kafka.connect.json.JsonDeserializer test = new org.apache.kafka.connect.json.JsonDeserializer();
+
         SparkSession spark = SparkSession
                 .builder()
                 .appName("Java Spark SQL basic example")

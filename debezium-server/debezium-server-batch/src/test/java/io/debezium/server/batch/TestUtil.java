@@ -30,14 +30,14 @@ class TestUtil {
 
     @Test
     public void testSimpleSchema() throws JsonProcessingException {
-        StructType s = ConsumerUtil.getEventSparkDfSchema(unwrapWithSchema);
+        StructType s = SchemaUtil.getEventSparkDfSchema(unwrapWithSchema);
         assertNotNull(s);
         assertTrue(s.catalogString().contains("id:int,order_date:int,purchaser:int,quantity:int,product_id:int,__op:string"));
     }
 
     @Test
     public void testNestedSparkSchema() throws JsonProcessingException {
-        StructType s = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
+        StructType s = SchemaUtil.getEventSparkDfSchema(serdeWithSchema);
         assertNotNull(s);
         assertTrue(s.catalogString().contains("before:struct<id"));
         assertTrue(s.catalogString().contains("after:struct<id"));
@@ -45,19 +45,19 @@ class TestUtil {
 
     @Test
     public void testNestedIcebergSchema() throws JsonProcessingException {
-        Schema s = ConsumerUtil.getEventIcebergSchema(serdeWithSchema);
+        Schema s = SchemaUtil.getEventIcebergSchema(serdeWithSchema);
         // StructType ss = ConsumerUtil.getEventSparkDfSchema(serdeWithSchema);
         assertNotNull(s);
         assertEquals(s.findField("ts_ms").fieldId(), 26);
         assertEquals(s.findField(7).name(), "last_name");
         assertTrue(s.asStruct().toString().contains("source: optional struct<"));
         assertTrue(s.asStruct().toString().contains("after: optional struct<"));
-        s = ConsumerUtil.getEventIcebergSchema(unwrapWithSchema);
+        s = SchemaUtil.getEventIcebergSchema(unwrapWithSchema);
     }
 
     @Test
     public void testNestedIcebergSchemaLoop() throws JsonProcessingException {
-        Schema s = ConsumerUtil.getEventIcebergSchema(serdeWithSchema);
+        Schema s = SchemaUtil.getEventIcebergSchema(serdeWithSchema);
         LOGGER.error(s.getAliases().toString());
         LOGGER.error(s.columns().toString());
         assert s != null;

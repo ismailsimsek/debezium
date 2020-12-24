@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.collect.Iterables;
 
-import io.debezium.server.batch.ConsumerUtil;
+import io.debezium.server.batch.SchemaUtil;
 import io.debezium.server.batch.keymapper.ObjectKeyMapper;
 
 /**
@@ -79,7 +79,7 @@ abstract class AbstractSparkBatchRecordWriter extends AbstractBatchRecordWriter 
 
     void setReaderSchema(DataFrameReader dfReader, String event) {
         try {
-            StructType schema = ConsumerUtil.getEventSparkDfSchema(event);
+            StructType schema = SchemaUtil.getEventSparkDfSchema(event);
             if (schema == null || schema.isEmpty()) {
                 return;
             }
