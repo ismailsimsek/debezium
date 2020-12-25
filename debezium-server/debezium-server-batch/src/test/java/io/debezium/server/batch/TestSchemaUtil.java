@@ -6,8 +6,6 @@
 
 package io.debezium.server.batch;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.iceberg.types.Types;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,12 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.apache.iceberg.Schema;
 import org.apache.spark.sql.types.StructType;
 import org.junit.jupiter.api.Test;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-
-import io.debezium.util.Testing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.debezium.util.Testing;
 
 class TestSchemaUtil {
 
@@ -63,6 +62,6 @@ class TestSchemaUtil {
         // assertEquals(s.asStruct().toString(), "xx");
         assertTrue(s.asStruct().toString().contains("source: optional struct<"));
         assertTrue(s.asStruct().toString().contains("after: optional struct<"));
-        LOGGER.error("{}",s);
+        LOGGER.error("{}", s);
     }
 }

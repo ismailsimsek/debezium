@@ -44,7 +44,7 @@ public class ConfigSource extends TestConfigSource {
 
         // iceberg
         s3Test.put("debezium.sink.iceberg.fs.defaultFS", "s3a://" + S3_BUCKET);
-        s3Test.put("debezium.sink.iceberg.warehouse", "s3a://" + S3_BUCKET+"/iceberg_warehouse");
+        s3Test.put("debezium.sink.iceberg.warehouse", "s3a://" + S3_BUCKET + "/iceberg_warehouse");
         s3Test.put("debezium.sink.iceberg.user.timezone", "UTC");
         s3Test.put("debezium.sink.iceberg.com.amazonaws.services.s3.enableV4", "true");
         s3Test.put("debezium.sink.iceberg.com.amazonaws.services.s3a.enableV4", "true");
@@ -96,7 +96,8 @@ public class ConfigSource extends TestConfigSource {
         s3Test.put("debezium.source." + StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG, OFFSET_STORE_PATH.toAbsolutePath().toString());
         s3Test.put("debezium.source.offset.flush.interval.ms", "0");
         s3Test.put("debezium.source.database.hostname", TestDatabase.POSTGRES_HOST);
-        s3Test.put("debezium.source.database.port", Integer.toString(5432));// this set by TestDatabase
+        // this set by TestDatabase
+        s3Test.put("debezium.source.database.port", Integer.toString(5432));
         s3Test.put("debezium.source.database.user", TestDatabase.POSTGRES_USER);
         s3Test.put("debezium.source.database.password", TestDatabase.POSTGRES_PASSWORD);
         s3Test.put("debezium.source.database.dbname", TestDatabase.POSTGRES_DBNAME);

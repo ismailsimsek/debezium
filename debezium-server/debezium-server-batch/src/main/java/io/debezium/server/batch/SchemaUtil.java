@@ -8,10 +8,7 @@ package io.debezium.server.batch;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
+
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.types.ArrayType;
@@ -22,6 +19,12 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.debezium.server.batch.batchwriter.AbstractBatchRecordWriter;
 
 /**
  * Implementation of the consumer that delivers the messages into Amazon S3 destination.
@@ -108,10 +111,10 @@ public class SchemaUtil {
             switch (fieldType) {
                 case "int8":
                 case "int16":
-                case "int32": // int 	4 bytes
+                case "int32": // int 4 bytes
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.LongType.get()));
                     break;
-                case "int64": // long 	8 bytes
+                case "int64": // long 8 bytes
                     schemaColumns.add(Types.NestedField.optional(columnId, fieldName, Types.LongType.get()));
                     break;
                 case "float8":

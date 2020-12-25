@@ -5,11 +5,12 @@
  */
 package io.debezium.server.batch;
 
-import io.debezium.util.Testing;
 import org.apache.spark.SparkConf;
 import org.apache.spark.sql.SparkSession;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.junit.jupiter.api.BeforeAll;
+
+import io.debezium.util.Testing;
 
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to s3 destination.
@@ -23,7 +24,6 @@ public class SparkTestBase {
     protected String saveFormat = ConfigProvider.getConfig().getOptionalValue("debezium.sink.sparkbatch.saveformat", String.class).orElse("json");
     protected static SparkSession spark;
     private static final String SPARK_PROP_PREFIX = "debezium.sink.sparkbatch.";
-
 
     {
         // Testing.Debug.enable();

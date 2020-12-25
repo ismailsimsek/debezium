@@ -15,17 +15,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
 import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.Dependent;
 import javax.inject.Named;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -46,7 +41,11 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
@@ -124,10 +123,11 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
     }
 
     public GenericRecord getIcebergRecord(Schema schema, JsonNode data) {
-        Map<String, Object> mappedResult = jsonObjectMapper.convertValue(data.get("payload"), new TypeReference<Map<String, Object>>(){});
-        LOGGER.error("RECORD DATA=>\n{}",data);
-        LOGGER.error("RECORD DATA PAYLOAD=>\n{}",data.get("payload"));
-        LOGGER.error("RECORD =>\n{}",GenericRecord.create(schema).copy(mappedResult));
+        Map<String, Object> mappedResult = jsonObjectMapper.convertValue(data.get("payload"), new TypeReference<Map<String, Object>>() {
+        });
+        // LOGGER.error("RECORD DATA=>\n{}",data);
+        // LOGGER.error("RECORD DATA PAYLOAD=>\n{}",data.get("payload"));
+        // LOGGER.error("RECORD =>\n{}",GenericRecord.create(schema).copy(mappedResult));
         return GenericRecord.create(schema).copy(mappedResult);
     }
 
@@ -181,7 +181,7 @@ public class IcebergChangeConsumer extends BaseChangeConsumer implements Debeziu
 
         FileAppender<Record> writer;
         try {
-            LOGGER.debug("Writing data to file: {}!",out);
+            LOGGER.debug("Writing data to file: {}!", out);
             writer = Parquet.write(out)
                     .createWriterFunc(GenericParquetWriter::buildWriter)
                     .forTable(icebergTable)

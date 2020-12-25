@@ -5,19 +5,22 @@
  */
 package io.debezium.server.batch;
 
-import java.time.Duration;
-import javax.inject.Inject;
-import io.debezium.server.DebeziumServer;
 import static io.debezium.server.batch.ConfigSource.S3_BUCKET;
-import io.quarkus.test.common.QuarkusTestResource;
-import io.quarkus.test.junit.QuarkusTest;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.time.Duration;
+
+import javax.inject.Inject;
+
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.fest.assertions.Assertions;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
+
+import io.debezium.server.DebeziumServer;
+import io.quarkus.test.common.QuarkusTestResource;
+import io.quarkus.test.junit.QuarkusTest;
 
 /**
  * Integration test that verifies basic reading from PostgreSQL database and writing to s3 destination.
@@ -36,8 +39,8 @@ public class IcebergIT extends SparkTestBase {
 
     @Test
     public void testIcebergConsumer() throws Exception {
-        //Testing.Print.enable();
-        assertEquals(sinkType,"iceberg");
+        // Testing.Print.enable();
+        assertEquals(sinkType, "iceberg");
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
             try {
@@ -53,8 +56,7 @@ public class IcebergIT extends SparkTestBase {
         });
 
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(
-                () -> TestS3Minio.getIcebergDataFiles(S3_BUCKET).size() >= 2
-        );
+                () -> TestS3Minio.getIcebergDataFiles(S3_BUCKET).size() >= 2);
         TestS3Minio.listFiles();
     }
 }
