@@ -117,7 +117,7 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         }
 
         if (warehouseLocation == null || warehouseLocation.trim().isEmpty()) {
-            warehouseLocation = defaultFs + "/iceberg/warehouse";
+            warehouseLocation = defaultFs + "/iceberg_warehouse";
         }
 
         icebergCatalog = new HadoopCatalog("iceberg", hadoopConf, warehouseLocation);
@@ -153,9 +153,6 @@ public class IcebergEventsChangeConsumer extends BaseChangeConsumer implements D
         int batchId = 0;
         int cntNumRows = 0;
         for (ChangeEvent<Object, Object> record : records) {
-            LOGGER.debug("key===>{}", record.key());
-            LOGGER.debug("value===>{}", record.value());
-            LOGGER.debug("dest===>{}", record.destination());
             Map<String, Object> var1 = Maps.newHashMapWithExpectedSize(TABLE_SCHEMA.columns().size());
             var1.put("event_destination", record.destination());
             var1.put("event_key", getString(record.key()));

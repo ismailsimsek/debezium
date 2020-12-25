@@ -5,15 +5,10 @@
  */
 package io.debezium.server.batch;
 
-import java.net.URISyntaxException;
 import java.time.Duration;
-import javax.enterprise.event.Observes;
 import javax.inject.Inject;
 import io.debezium.server.DebeziumServer;
 import static io.debezium.server.batch.ConfigSource.S3_BUCKET;
-import io.debezium.server.events.ConnectorCompletedEvent;
-import io.debezium.server.events.ConnectorStartedEvent;
-import io.debezium.util.Testing;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import org.apache.spark.sql.Dataset;
@@ -21,6 +16,7 @@ import org.apache.spark.sql.Row;
 import org.awaitility.Awaitility;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.fest.assertions.Assertions;
+import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -38,31 +34,14 @@ public class IcebergIT extends SparkTestBase {
     @ConfigProperty(name = "debezium.sink.type")
     String sinkType;
 
-    {
-        // Testing.Debug.enable();
-        Testing.Files.delete(ConfigSource.OFFSET_STORE_PATH);
-        Testing.Files.createTestingFile(ConfigSource.OFFSET_STORE_PATH);
-    }
-
-    void setupDependencies(@Observes ConnectorStartedEvent event) throws URISyntaxException {
-        if (!sinkType.equals("iceberg")) {
-            return;
-        }
-    }
-
-    void connectorCompleted(@Observes ConnectorCompletedEvent event) throws Exception {
-        if (!event.isSuccess()) {
-            throw (Exception) event.getError().get();
-        }
-    }
-
     @Test
     public void testIcebergConsumer() throws Exception {
         //Testing.Print.enable();
-        Assertions.assertThat(sinkType.equals("iceberg"));
-        //TestS3Minio.listFiles();
+        assertEquals(sinkType,"iceberg");
+
         Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
             try {
+
                 Dataset<Row> ds = spark.read().format("iceberg")
                         .load("s3a://test-bucket/iceberg_warehouse/testc.inventory.customers");
                 ds.show();
@@ -72,9 +51,10 @@ public class IcebergIT extends SparkTestBase {
                 return false;
             }
         });
-        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(() -> {
-            return TestS3Minio.getIcebergDataFiles(S3_BUCKET).size() >= 2;
-        });
+
+        Awaitility.await().atMost(Duration.ofSeconds(ConfigSource.waitForSeconds())).until(
+                () -> TestS3Minio.getIcebergDataFiles(S3_BUCKET).size() >= 2
+        );
         TestS3Minio.listFiles();
     }
 }
