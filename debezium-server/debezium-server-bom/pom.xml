@@ -69,6 +69,13 @@
                 <version>${project.version}</version>
             </dependency>
 
+            <!-- antlr systems -->
+            <dependency>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4-runtime</artifactId>
+                <version>${antlr.version}</version>
+            </dependency>
+
             <!-- Target systems -->
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
