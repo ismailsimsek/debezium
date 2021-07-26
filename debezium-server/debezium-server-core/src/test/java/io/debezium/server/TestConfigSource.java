@@ -69,6 +69,7 @@ public class TestConfigSource implements ConfigSource {
 
         // DBZ-2622 For testing properties passed via smallrye/microprofile environment variables
         unitTest.put("DEBEZIUM_SOURCE_TABLE_WHITELIST", "public.table_name");
+        unitTest.put("debezium.source.snapshot.select.statement.overrides.public.table_name","SELECT * FROM table_name WHERE 1>2");
 
         if (isItTest()) {
             config = integrationTest;
