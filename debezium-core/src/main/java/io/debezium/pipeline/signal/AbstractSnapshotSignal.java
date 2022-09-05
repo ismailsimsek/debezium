@@ -40,4 +40,9 @@ public abstract class AbstractSnapshotSignal<P extends Partition> implements Sig
         return type;
     }
 
+    @Override
+    public boolean arrived(Signal.Payload<P> signalPayload) throws InterruptedException {
+        return true;
+    }
+
 }

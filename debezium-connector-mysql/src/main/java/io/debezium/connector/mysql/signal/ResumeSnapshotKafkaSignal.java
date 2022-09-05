@@ -5,5 +5,12 @@
  */
 package io.debezium.connector.mysql.signal;
 
-public class ResumeSnapshotKafkaSignal implements KafkaSignal {
+import io.debezium.pipeline.EventDispatcher;
+import io.debezium.pipeline.signal.ResumeIncrementalSnapshot;
+import io.debezium.pipeline.spi.Partition;
+
+public class ResumeSnapshotKafkaSignal<P extends Partition> extends ResumeIncrementalSnapshot<P> {
+    public ResumeSnapshotKafkaSignal(EventDispatcher dispatcher) {
+        super(dispatcher);
+    }
 }

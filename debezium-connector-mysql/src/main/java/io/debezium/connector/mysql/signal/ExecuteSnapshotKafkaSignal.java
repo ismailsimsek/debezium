@@ -8,12 +8,17 @@ package io.debezium.connector.mysql.signal;
 import java.util.List;
 import java.util.Optional;
 
-public class ExecuteSnapshotKafkaSignal implements KafkaSignal {
+import io.debezium.pipeline.EventDispatcher;
+import io.debezium.pipeline.signal.ExecuteSnapshot;
+import io.debezium.pipeline.spi.Partition;
+
+public class ExecuteSnapshotKafkaSignal<P extends Partition> extends ExecuteSnapshot<P> {
     private final List<String> dataCollections;
     private final long signalOffset;
     private final Optional<String> additionalCondition;
 
-    public ExecuteSnapshotKafkaSignal(List<String> dataCollections, long signalOffset, Optional<String> additionalCondition) {
+    public ExecuteSnapshotKafkaSignal(EventDispatcher dispatcher, List<String> dataCollections, long signalOffset, Optional<String> additionalCondition) {
+        super(dispatcher);
         this.dataCollections = dataCollections;
         this.signalOffset = signalOffset;
         this.additionalCondition = additionalCondition;
@@ -30,4 +35,5 @@ public class ExecuteSnapshotKafkaSignal implements KafkaSignal {
     public Optional<String> getAdditionalCondition() {
         return additionalCondition;
     }
+
 }

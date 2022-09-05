@@ -15,7 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.debezium.annotation.NotThreadSafe;
-import io.debezium.connector.mysql.signal.KafkaSignal;
+import io.debezium.pipeline.signal.AbstractSnapshotSignal;
 import io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnapshotContext;
 import io.debezium.pipeline.source.snapshot.incremental.IncrementalSnapshotContext;
 import io.debezium.pipeline.spi.OffsetContext;
@@ -29,7 +29,7 @@ public class MySqlReadOnlyIncrementalSnapshotContext<T> extends AbstractIncremen
     private GtidSet lowWatermark;
     private GtidSet highWatermark;
     private Long signalOffset;
-    private final Queue<KafkaSignal> kafkaSignals = new ConcurrentLinkedQueue<>();
+    private final Queue<AbstractSnapshotSignal<MySqlPartition>> externalSignals = new ConcurrentLinkedQueue<>();
     public static final String SIGNAL_OFFSET = INCREMENTAL_SNAPSHOT_KEY + "_signal_offset";
 
     public MySqlReadOnlyIncrementalSnapshotContext() {
@@ -141,16 +141,16 @@ public class MySqlReadOnlyIncrementalSnapshotContext<T> extends AbstractIncremen
         return snapshotOffset;
     }
 
-    public void enqueueKafkaSignal(KafkaSignal signal) {
-        kafkaSignals.add(signal);
+    public void enqueueSnapshotSignal(AbstractSnapshotSignal<MySqlPartition> signal) {
+        externalSignals.add(signal);
     }
 
-    public KafkaSignal getKafkaSignals() {
-        return kafkaSignals.poll();
+    public AbstractSnapshotSignal<MySqlPartition> getSnapshotSignals() {
+        return externalSignals.poll();
     }
 
-    public boolean hasKafkaSignals() {
-        return !kafkaSignals.isEmpty();
+    public boolean hasSnapshotSignals() {
+        return !externalSignals.isEmpty();
     }
 
     public boolean watermarksChanged() {

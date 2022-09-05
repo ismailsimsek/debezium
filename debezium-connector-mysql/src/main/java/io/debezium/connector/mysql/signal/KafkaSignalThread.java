@@ -33,6 +33,7 @@ import io.debezium.pipeline.signal.AbstractSnapshotSignal;
 import io.debezium.pipeline.signal.ExecuteSnapshot;
 import io.debezium.pipeline.signal.PauseIncrementalSnapshot;
 import io.debezium.pipeline.signal.ResumeIncrementalSnapshot;
+import io.debezium.pipeline.signal.SnapshotSignalThread;
 import io.debezium.pipeline.signal.StopSnapshot;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Collect;
@@ -47,7 +48,7 @@ import io.debezium.util.Threads;
  * <li>{@code data STRING} - the data in JSON format that are passed to the signal code
  * </ul>
  */
-public class KafkaSignalThread<T extends DataCollectionId> {
+public class KafkaSignalThread<T extends DataCollectionId> implements SnapshotSignalThread<T> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSignalThread.class);
 
