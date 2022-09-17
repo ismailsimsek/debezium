@@ -28,6 +28,7 @@ public class ExecuteSnapshotKafkaSignal<P extends Partition> extends ExecuteSnap
         return dataCollections;
     }
 
+    @Override
     public long getSignalOffset() {
         return signalOffset;
     }

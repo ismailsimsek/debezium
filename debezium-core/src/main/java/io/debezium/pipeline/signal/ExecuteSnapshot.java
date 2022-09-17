@@ -75,4 +75,5 @@ public class ExecuteSnapshot<P extends Partition> extends AbstractSnapshotSignal
         String additionalCondition = data.getString(FIELD_ADDITIONAL_CONDITION);
         return (additionalCondition == null || additionalCondition.trim().isEmpty()) ? Optional.empty() : Optional.of(additionalCondition);
     }
+
 }

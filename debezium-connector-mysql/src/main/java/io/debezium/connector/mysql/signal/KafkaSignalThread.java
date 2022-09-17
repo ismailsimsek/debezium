@@ -194,7 +194,7 @@ public class KafkaSignalThread<T extends DataCollectionId> implements SnapshotSi
             LOGGER.info("Requested stop of '{}' snapshot of data collections '{}'", snapshotType, dataCollections);
         }
         if (snapshotType == AbstractSnapshotSignal.SnapshotType.INCREMENTAL) {
-            eventSource.stopSnapshot(dataCollections, signalOffset);
+            eventSource.stopSnapshot(data, dataCollections, signalOffset);
         }
     }
 
