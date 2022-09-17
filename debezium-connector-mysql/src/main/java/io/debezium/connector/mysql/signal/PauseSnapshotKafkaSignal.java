@@ -8,9 +8,10 @@ package io.debezium.connector.mysql.signal;
 import io.debezium.pipeline.EventDispatcher;
 import io.debezium.pipeline.signal.PauseIncrementalSnapshot;
 import io.debezium.pipeline.spi.Partition;
+import io.debezium.spi.schema.DataCollectionId;
 
 public class PauseSnapshotKafkaSignal<P extends Partition> extends PauseIncrementalSnapshot<P> {
-    public PauseSnapshotKafkaSignal(EventDispatcher dispatcher) {
+    public PauseSnapshotKafkaSignal(EventDispatcher<P,? extends DataCollectionId> dispatcher) {
         super(dispatcher);
     }
 }
