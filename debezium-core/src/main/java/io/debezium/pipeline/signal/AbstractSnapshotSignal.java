@@ -44,9 +44,11 @@ public abstract class AbstractSnapshotSignal<P extends Partition> implements Sig
     public boolean arrived(Signal.Payload<P> signalPayload) throws InterruptedException {
         return true;
     }
-    
+
     /*
-    For the moment only relevant to Kafka signaling
+     * For the moment only relevant to Kafka signaling
+     * 
+     * @TODO shouldn't it be get document???!
      */
     public long getSignalOffset() {
         return 0L;
