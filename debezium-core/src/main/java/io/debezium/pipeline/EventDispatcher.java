@@ -355,6 +355,10 @@ public class EventDispatcher<P extends Partition, T extends DataCollectionId> im
         }
     }
 
+    public Signal<P> signal() {
+        return signal;
+    }
+
     /**
      * Change record receiver used during snapshotting. Allows for a deferred submission of records, which is needed in
      * order to set the "snapshot completed" offset field, which we can't send to Kafka Connect without sending an

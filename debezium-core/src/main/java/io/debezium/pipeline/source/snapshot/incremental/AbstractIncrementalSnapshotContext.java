@@ -56,6 +56,7 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
 
     public static final String EVENT_PRIMARY_KEY = INCREMENTAL_SNAPSHOT_KEY + "_primary_key";
     public static final String TABLE_MAXIMUM_KEY = INCREMENTAL_SNAPSHOT_KEY + "_maximum_key";
+    public static final String SIGNAL_OFFSET = INCREMENTAL_SNAPSHOT_KEY + "_signal_offset";
 
     /**
      * @code(true) if window is opened and deduplication should be executed
@@ -98,6 +99,7 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
 
     private TypeReference<List<LinkedHashMap<String, String>>> mapperTypeRef = new TypeReference<>() {
     };
+    protected Long signalOffset;
 
     public AbstractIncrementalSnapshotContext(boolean useCatalogBeforeSchema) {
         this.useCatalogBeforeSchema = useCatalogBeforeSchema;
@@ -218,6 +220,7 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
         offset.put(EVENT_PRIMARY_KEY, arrayToSerializedString(lastEventKeySent));
         offset.put(TABLE_MAXIMUM_KEY, arrayToSerializedString(maximumKey));
         offset.put(DATA_COLLECTIONS_TO_SNAPSHOT_KEY, dataCollectionsToSnapshotAsString());
+        offset.put(SIGNAL_OFFSET, signalOffset);
         return offset;
     }
 
@@ -260,6 +263,12 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
         if (dataCollectionsStr != null) {
             context.addTablesIdsToSnapshot(context.stringToDataCollections(dataCollectionsStr));
         }
+
+        final Long signalOffset = (Long) offsets.get(SIGNAL_OFFSET);
+        if (signalOffset != null) {
+            context.setSignalOffset(signalOffset);
+        }
+
         return context;
     }
 
@@ -350,4 +359,13 @@ public class AbstractIncrementalSnapshotContext<T> implements IncrementalSnapsho
                 + ", lastEventKeySent=" + Arrays.toString(lastEventKeySent) + ", maximumKey="
                 + Arrays.toString(maximumKey) + "]";
     }
+
+    public void setSignalOffset(Long signalOfset) {
+        this.signalOffset = signalOffset;
+    }
+
+    public Long getSignalOffset() {
+        return signalOffset;
+    }
+
 }

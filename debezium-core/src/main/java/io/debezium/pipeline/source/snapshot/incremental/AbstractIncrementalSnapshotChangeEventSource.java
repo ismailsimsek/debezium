@@ -745,4 +745,8 @@ public abstract class AbstractIncrementalSnapshotChangeEventSource<P extends Par
     private KeyMapper getKeyMapper() {
         return connectorConfig.getKeyMapper() == null ? table -> table.primaryKeyColumns() : connectorConfig.getKeyMapper();
     }
+
+    protected IncrementalSnapshotContext<T> getSnapshotContext() {
+        return context;
+    }
 }

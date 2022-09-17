@@ -66,4 +66,8 @@ public interface IncrementalSnapshotContext<T> {
     void stopSnapshot();
 
     boolean removeDataCollectionFromSnapshot(String dataCollectionId);
+
+    void setSignalOffset(Long signalOffset);
+
+    Long getSignalOffset();
 }

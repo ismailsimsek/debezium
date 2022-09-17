@@ -3,14 +3,11 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package io.debezium.connector.mysql.signal;
+package io.debezium.pipeline.signal.source;
 
 import java.io.IOException;
 import java.time.Duration;
-import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
 
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -26,17 +23,13 @@ import org.slf4j.LoggerFactory;
 import io.debezium.config.CommonConnectorConfig;
 import io.debezium.config.Configuration;
 import io.debezium.config.Field;
-import io.debezium.connector.mysql.MySqlReadOnlyIncrementalSnapshotChangeEventSource;
 import io.debezium.document.Document;
 import io.debezium.document.DocumentReader;
-import io.debezium.pipeline.signal.AbstractSnapshotSignal;
-import io.debezium.pipeline.signal.ExecuteSnapshot;
-import io.debezium.pipeline.signal.PauseIncrementalSnapshot;
-import io.debezium.pipeline.signal.ResumeIncrementalSnapshot;
-import io.debezium.pipeline.signal.StopSnapshot;
+import io.debezium.pipeline.signal.SignalRecord;
+import io.debezium.pipeline.source.snapshot.incremental.AbstractIncrementalSnapshotChangeEventSource;
+import io.debezium.pipeline.spi.Partition;
 import io.debezium.spi.schema.DataCollectionId;
 import io.debezium.util.Collect;
-import io.debezium.util.Threads;
 
 /**
  * The class responsible for processing of signals delivered to Debezium via a dedicated Kafka topic.
@@ -47,18 +40,15 @@ import io.debezium.util.Threads;
  * <li>{@code data STRING} - the data in JSON format that are passed to the signal code
  * </ul>
  */
-public class KafkaSignalThread<T extends DataCollectionId> {
+public class KafkaSignalThread<P extends Partition, T extends DataCollectionId> extends AbstractSignalThread<P, T> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSignalThread.class);
 
-    private final ExecutorService signalTopicListenerExecutor;
     private final String topicName;
     private final String connectorName;
     private final Duration pollTimeoutMs;
-    private final MySqlReadOnlyIncrementalSnapshotChangeEventSource<T> eventSource;
     private final KafkaConsumer<String, String> signalsConsumer;
 
-    public static final String CONFIGURATION_FIELD_PREFIX_STRING = "signal.";
     private static final String CONSUMER_PREFIX = CONFIGURATION_FIELD_PREFIX_STRING + "consumer.";
 
     public static final Field SIGNAL_TOPIC = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "kafka.topic")
@@ -90,15 +80,14 @@ public class KafkaSignalThread<T extends DataCollectionId> {
             .withValidation(Field::isNonNegativeInteger);
 
     public KafkaSignalThread(Class<? extends SourceConnector> connectorType, CommonConnectorConfig connectorConfig,
-                             MySqlReadOnlyIncrementalSnapshotChangeEventSource<T> eventSource) {
+                             AbstractIncrementalSnapshotChangeEventSource<P, T> incrementalSnapshotChangeEventSource) {
+        super(connectorType, connectorConfig, incrementalSnapshotChangeEventSource, "kafka-signal");
         String signalName = "kafka-signal";
         connectorName = connectorConfig.getLogicalName();
-        signalTopicListenerExecutor = Threads.newSingleThreadExecutor(connectorType, connectorName, signalName, true);
         Configuration signalConfig = connectorConfig.getConfig().subset(CONFIGURATION_FIELD_PREFIX_STRING, false)
                 .edit()
                 .withDefault(KafkaSignalThread.SIGNAL_TOPIC, connectorName + "-signal")
                 .build();
-        this.eventSource = eventSource;
         this.topicName = signalConfig.getString(SIGNAL_TOPIC);
         this.pollTimeoutMs = Duration.ofMillis(signalConfig.getInteger(SIGNAL_POLL_TIMEOUT_MS));
         String bootstrapServers = signalConfig.getString(BOOTSTRAP_SERVERS);
@@ -117,11 +106,7 @@ public class KafkaSignalThread<T extends DataCollectionId> {
         signalsConsumer.assign(Collect.arrayListOf(new TopicPartition(topicName, 0)));
     }
 
-    public void start() {
-        signalTopicListenerExecutor.submit(this::monitorSignals);
-    }
-
-    private void monitorSignals() {
+    protected void monitorSignals() {
         while (true) {
             // DBZ-1361 not using poll(Duration) to keep compatibility with AK 1.x
             ConsumerRecords<String, String> recoveredRecords = signalsConsumer.poll(pollTimeoutMs.toMillis());
@@ -150,69 +135,13 @@ public class KafkaSignalThread<T extends DataCollectionId> {
         LOGGER.trace("Processing signal: {}", value);
         final Document jsonData = (value == null || value.isEmpty()) ? Document.create()
                 : DocumentReader.defaultReader().read(value);
+        String id = jsonData.getString("id");
         String type = jsonData.getString("type");
-        Document data = jsonData.getDocument("data");
-        switch (type) {
-            case ExecuteSnapshot.NAME:
-                executeSnapshot(data, record.offset());
-                break;
-            case StopSnapshot.NAME:
-                executeStopSnapshot(data, record.offset());
-                break;
-            case PauseIncrementalSnapshot.NAME:
-                executePause(data);
-                break;
-            case ResumeIncrementalSnapshot.NAME:
-                executeResume(data);
-                break;
-            default:
-                LOGGER.warn("Unknown signal type {}", type);
-        }
+        String data = jsonData.getString("data");
+        this.add(new SignalRecord(id, type, data, record.offset()));
     }
 
-    private void executeSnapshot(Document data, long signalOffset) {
-        final List<String> dataCollections = ExecuteSnapshot.getDataCollections(data);
-        if (dataCollections != null) {
-            ExecuteSnapshot.SnapshotType snapshotType = ExecuteSnapshot.getSnapshotType(data);
-            Optional<String> additionalCondition = ExecuteSnapshot.getAdditionalCondition(data);
-            LOGGER.info("Requested '{}' snapshot of data collections '{}' with additional condition '{}'", snapshotType, dataCollections,
-                    additionalCondition.orElse("No condition passed"));
-            if (snapshotType == ExecuteSnapshot.SnapshotType.INCREMENTAL) {
-                eventSource.enqueueDataCollectionNamesToSnapshot(dataCollections, signalOffset, additionalCondition);
-            }
-        }
-    }
-
-    private void executeStopSnapshot(Document data, long signalOffset) {
-        final List<String> dataCollections = StopSnapshot.getDataCollections(data);
-        final AbstractSnapshotSignal.SnapshotType snapshotType = StopSnapshot.getSnapshotType(data);
-        if (dataCollections == null || dataCollections.isEmpty()) {
-            LOGGER.info("Requested stop of '{}' snapshot", snapshotType);
-        }
-        else {
-            LOGGER.info("Requested stop of '{}' snapshot of data collections '{}'", snapshotType, dataCollections);
-        }
-        if (snapshotType == AbstractSnapshotSignal.SnapshotType.INCREMENTAL) {
-            eventSource.stopSnapshot(dataCollections, signalOffset);
-        }
-    }
-
-    private void executePause(Document data) {
-        PauseIncrementalSnapshot.SnapshotType snapshotType = ExecuteSnapshot.getSnapshotType(data);
-        LOGGER.info("Requested snapshot pause");
-        if (snapshotType == PauseIncrementalSnapshot.SnapshotType.INCREMENTAL) {
-            eventSource.enqueuePauseSnapshot();
-        }
-    }
-
-    private void executeResume(Document data) {
-        ResumeIncrementalSnapshot.SnapshotType snapshotType = ExecuteSnapshot.getSnapshotType(data);
-        LOGGER.info("Requested snapshot resume");
-        if (snapshotType == ResumeIncrementalSnapshot.SnapshotType.INCREMENTAL) {
-            eventSource.enqueueResumeSnapshot();
-        }
-    }
-
+    @Override
     public void seek(long signalOffset) {
         signalsConsumer.seek(new TopicPartition(topicName, 0), signalOffset + 1);
     }
