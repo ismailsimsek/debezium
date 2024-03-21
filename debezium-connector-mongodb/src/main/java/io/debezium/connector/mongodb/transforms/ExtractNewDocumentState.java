@@ -5,8 +5,7 @@
  */
 package io.debezium.connector.mongodb.transforms;
 
-import static io.debezium.transforms.ExtractNewRecordStateConfigDefinition.CONFIG_FIELDS;
-import static io.debezium.transforms.ExtractNewRecordStateConfigDefinition.DELETED_FIELD;
+import static io.debezium.transforms.ExtractNewRecordStateConfigDefinition.*;
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
 import java.util.List;
@@ -25,6 +24,7 @@ import org.apache.kafka.connect.transforms.ExtractField;
 import org.apache.kafka.connect.transforms.Flatten;
 import org.bson.BsonBoolean;
 import org.bson.BsonDocument;
+import org.bson.BsonString;
 import org.bson.BsonValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -216,6 +216,9 @@ public class ExtractNewDocumentState<R extends ConnectRecord<R>> extends Abstrac
         // add rewrite field
         if (extractRecordStrategy.isRewriteMode()) {
             valueDocument.append(DELETED_FIELD, new BsonBoolean(isDeletion));
+            if (!valueDocument.containsKey("_id")) {
+                valueDocument.append("_id", keyDocument.get("id"));
+            }
         }
 
         return newRecord(record, keyDocument, valueDocument);

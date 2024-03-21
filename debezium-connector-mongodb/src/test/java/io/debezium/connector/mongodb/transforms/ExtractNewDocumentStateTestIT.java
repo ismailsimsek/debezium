@@ -360,7 +360,7 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
         waitForStreamingRunning();
 
         final Map<String, String> props = new HashMap<>();
-        props.put(ADD_FIELDS, "ord,db");
+        props.put(ADD_FIELDS, "ord,db,op");
         props.put(HANDLE_TOMBSTONE_DELETES, "rewrite");
         transformation.configure(props);
 
@@ -397,6 +397,8 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
         assertThat(value.get("__ord")).isEqualTo(source.getInt32("ord"));
         assertThat(value.get("__db")).isEqualTo(source.getString("db"));
         assertThat(value.get("__db")).isEqualTo(DB_NAME);
+        assertThat(value.get("__op")).isEqualTo("d");
+        assertThat(value.get("_id")).isEqualTo(4);
     }
 
     @Test
@@ -1532,6 +1534,7 @@ public class ExtractNewDocumentStateTestIT extends AbstractExtractNewDocumentSta
         assertThat(((Struct) transformed.value()).get("__deleted")).isEqualTo(true);
         assertThat(((Struct) transformed.value()).get("__op")).isEqualTo(Envelope.Operation.DELETE.code());
         assertThat(((Struct) transformed.value()).get("__ts_ms")).isNotNull();
+        assertThat(((Struct) transformed.value()).get("_id")).isNotNull();
     }
 
     @Test
