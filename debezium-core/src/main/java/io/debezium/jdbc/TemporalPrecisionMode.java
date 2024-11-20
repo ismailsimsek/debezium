@@ -25,6 +25,12 @@ public enum TemporalPrecisionMode implements EnumeratedValue {
     ADAPTIVE_TIME_MICROSECONDS("adaptive_time_microseconds"),
 
     /**
+     * Represent timestamp, datetime and date values as ISO string,
+     * using {@link io.debezium.time.IsoDate}, {@link io.debezium.time.IsoTime}, {@link io.debezium.time.IsoTimestamp} semantic types.
+     */
+    ISOSTRING("isostring"),
+
+    /**
      * Represent time and date values using Kafka Connect {@link org.apache.kafka.connect.data} logical types, which always
      * have millisecond precision.
      */

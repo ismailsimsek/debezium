@@ -44,6 +44,9 @@ import io.debezium.relational.Column;
 import io.debezium.relational.ValueConverter;
 import io.debezium.relational.ValueConverterProvider;
 import io.debezium.time.Date;
+import io.debezium.time.IsoDate;
+import io.debezium.time.IsoTime;
+import io.debezium.time.IsoTimestamp;
 import io.debezium.time.MicroTime;
 import io.debezium.time.MicroTimestamp;
 import io.debezium.time.NanoTime;
@@ -97,6 +100,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
     private final String fallbackTimeWithTimeZone;
     protected final boolean adaptiveTimePrecisionMode;
     protected final boolean adaptiveTimeMicrosecondsPrecisionMode;
+    protected final boolean adaptiveTimeIsoString;
     protected final DecimalMode decimalMode;
     protected final TemporalAdjuster adjuster;
     protected final BigIntUnsignedMode bigIntUnsignedMode;
@@ -132,6 +136,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
         this.defaultOffset = defaultOffset != null ? defaultOffset : ZoneOffset.UTC;
         this.adaptiveTimePrecisionMode = temporalPrecisionMode.equals(TemporalPrecisionMode.ADAPTIVE);
         this.adaptiveTimeMicrosecondsPrecisionMode = temporalPrecisionMode.equals(TemporalPrecisionMode.ADAPTIVE_TIME_MICROSECONDS);
+        this.adaptiveTimeIsoString = temporalPrecisionMode.equals(TemporalPrecisionMode.ISOSTRING);
         this.decimalMode = decimalMode != null ? decimalMode : DecimalMode.PRECISE;
         this.adjuster = adjuster;
         this.bigIntUnsignedMode = bigIntUnsignedMode != null ? bigIntUnsignedMode : BigIntUnsignedMode.PRECISE;
@@ -221,6 +226,9 @@ public class JdbcValueConverters implements ValueConverterProvider {
                 if (adaptiveTimePrecisionMode || adaptiveTimeMicrosecondsPrecisionMode) {
                     return Date.builder();
                 }
+                if (adaptiveTimeIsoString) {
+                    return IsoDate.builder();
+                }
                 return org.apache.kafka.connect.data.Date.builder();
             case Types.TIME:
                 if (adaptiveTimeMicrosecondsPrecisionMode) {
@@ -235,6 +243,9 @@ public class JdbcValueConverters implements ValueConverterProvider {
                     }
                     return NanoTime.builder();
                 }
+                if (adaptiveTimeIsoString) {
+                    return IsoTime.builder();
+                }
                 return org.apache.kafka.connect.data.Time.builder();
             case Types.TIMESTAMP:
                 if (adaptiveTimePrecisionMode || adaptiveTimeMicrosecondsPrecisionMode) {
@@ -245,6 +256,9 @@ public class JdbcValueConverters implements ValueConverterProvider {
                         return MicroTimestamp.builder();
                     }
                     return NanoTimestamp.builder();
+                }
+                if (adaptiveTimeIsoString) {
+                    return IsoTimestamp.builder();
                 }
                 return org.apache.kafka.connect.data.Timestamp.builder();
             case Types.TIME_WITH_TIMEZONE:
@@ -328,8 +342,14 @@ public class JdbcValueConverters implements ValueConverterProvider {
                 if (adaptiveTimePrecisionMode || adaptiveTimeMicrosecondsPrecisionMode) {
                     return (data) -> convertDateToEpochDays(column, fieldDefn, data);
                 }
+                if (adaptiveTimeIsoString) {
+                    return (data) -> convertDateToUtcIsoString(column, fieldDefn, data);
+                }
                 return (data) -> convertDateToEpochDaysAsDate(column, fieldDefn, data);
             case Types.TIME:
+                if (adaptiveTimeIsoString) {
+                    return (data) -> convertTimeToUtcIsoString(column, fieldDefn, data);
+                }
                 return (data) -> convertTime(column, fieldDefn, data);
             case Types.TIMESTAMP:
                 if (adaptiveTimePrecisionMode || adaptiveTimeMicrosecondsPrecisionMode) {
@@ -340,6 +360,9 @@ public class JdbcValueConverters implements ValueConverterProvider {
                         return data -> convertTimestampToEpochMicros(column, fieldDefn, data);
                     }
                     return (data) -> convertTimestampToEpochNanos(column, fieldDefn, data);
+                }
+                if (adaptiveTimeIsoString) {
+                    return (data) -> convertTimestampToUtcIsoString(column, fieldDefn, data);
                 }
                 return (data) -> convertTimestampToEpochMillisAsDate(column, fieldDefn, data);
             case Types.TIME_WITH_TIMEZONE:
@@ -670,6 +693,40 @@ public class JdbcValueConverters implements ValueConverterProvider {
             catch (IllegalArgumentException e) {
                 logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
                         fieldDefn.schema(), data.getClass(), data);
+            }
+        });
+    }
+
+    // @TODO add javadoc
+    protected Object convertDateToUtcIsoString(Column column, Field fieldDefn, Object data) {
+        return convertValue(column, fieldDefn, data, "1970-01-01Z", (r) -> {
+            try {
+                r.deliver(IsoDate.toIsoString(data, adjuster));
+            }
+            catch (IllegalArgumentException e) {
+                logger.warn("Unexpected JDBC DATE value for field {} with schema {}: class={}, value={}", fieldDefn.name(),
+                        fieldDefn.schema(), data.getClass(), data);
+            }
+        });
+    }
+
+    protected Object convertTimeToUtcIsoString(Column column, Field fieldDefn, Object data) {
+        // epoch is the fallback value
+        return convertValue(column, fieldDefn, data, "00:00:00Z", (r) -> {
+            try {
+                r.deliver(IsoTime.toIsoString(data, supportsLargeTimeValues()));
+            }
+            catch (IllegalArgumentException e) {
+            }
+        });
+    }
+
+    protected Object convertTimestampToUtcIsoString(Column column, Field fieldDefn, Object data) {
+        return convertValue(column, fieldDefn, data, "1970-01-01T00:00:00Z", (r) -> {
+            try {
+                r.deliver(IsoTimestamp.toIsoString(data, adjuster));
+            }
+            catch (IllegalArgumentException e) {
             }
         });
     }
