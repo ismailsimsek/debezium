@@ -389,11 +389,11 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
     public void shouldProcessNotNullColumnsAdaptiveDateTypes() throws Exception {
         final Struct before = testProcessNotNullColumns(TemporalPrecisionMode.ADAPTIVE);
         if (before != null) {
-            assertThat(before.get("created_at")).isEqualTo(0L);
+            assertThat(before.get("created_at")).isEqualTo("1970-01-01T00:00:00Z");
             assertThat(before.get("created_at_tz")).isEqualTo("1970-01-01T00:00:00Z");
-            assertThat(before.get("ctime")).isEqualTo(0L);
+            assertThat(before.get("ctime")).isEqualTo("1970-01-01Z");
             assertThat(before.get("ctime_tz")).isEqualTo("00:00:00Z");
-            assertThat(before.get("cdate")).isEqualTo(0);
+            assertThat(before.get("cdate")).isEqualTo("00:00:00Z");
             assertThat(before.get("cmoney")).isEqualTo(new BigDecimal("0.00"));
             assertThat(before.get("cbits")).isEqualTo(new byte[0]);
         }
