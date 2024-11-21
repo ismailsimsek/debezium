@@ -446,7 +446,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
             case PgOid.INTERVAL:
                 return data -> convertInterval(column, fieldDefn, data);
             case PgOid.TIME:
-                return data -> convertTime(column, fieldDefn, data);
+                return ((ValueConverter) (data -> convertTime(column, fieldDefn, data))).and(super.converter(column, fieldDefn));
             case PgOid.TIMESTAMP:
                 return ((ValueConverter) (data -> convertTimestampToLocalDateTime(column, fieldDefn, data))).and(super.converter(column, fieldDefn));
             case PgOid.TIMESTAMPTZ:
@@ -609,7 +609,7 @@ public class PostgresValueConverter extends JdbcValueConverters {
             data = Strings.asDuration((String) data);
         }
 
-        return super.convertTime(column, fieldDefn, data);
+        return data;
     }
 
     protected Object convertDecimal(Column column, Field fieldDefn, Object data, DecimalMode mode) {

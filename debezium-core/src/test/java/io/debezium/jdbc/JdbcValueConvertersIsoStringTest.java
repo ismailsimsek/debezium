@@ -84,7 +84,7 @@ public class JdbcValueConvertersIsoStringTest {
         assertThat(timeCol.isOptional()).isEqualTo(false);
         assertThat(timeValConverter.convert(null)).isEqualTo("00:00:00Z");
         // java.util.Date
-        Object val = timeValConverter.convert(new java.util.Date(10, 30, 01, 3,4,5));
+        Object val = timeValConverter.convert(new java.util.Date(10, 30, 01, 3, 4, 5));
         assertThat(val).isEqualTo("03:04:05Z");
         // OffsetTime
         val = timeValConverter.convert(new java.sql.Time(10, 30, 01));
