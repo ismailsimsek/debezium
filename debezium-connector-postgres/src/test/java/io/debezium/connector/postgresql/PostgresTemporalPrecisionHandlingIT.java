@@ -6,12 +6,11 @@
 
 package io.debezium.connector.postgresql;
 
-import io.debezium.data.Envelope;
-import io.debezium.data.VerifyRecord;
-import io.debezium.doc.FixFor;
-import io.debezium.embedded.async.AbstractAsyncEngineConnectorTest;
-import io.debezium.jdbc.TemporalPrecisionMode;
-import io.debezium.util.Testing;
+import static io.debezium.connector.postgresql.TestHelper.topicName;
+import static junit.framework.TestCase.assertEquals;
+
+import java.sql.SQLException;
+
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.junit.After;
@@ -21,12 +20,12 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.SQLException;
-import java.util.Random;
-
-import static io.debezium.connector.postgresql.TestHelper.topicName;
-import static junit.framework.TestCase.assertEquals;
-import static org.assertj.core.api.Assertions.assertThat;
+import io.debezium.data.Envelope;
+import io.debezium.data.VerifyRecord;
+import io.debezium.doc.FixFor;
+import io.debezium.embedded.async.AbstractAsyncEngineConnectorTest;
+import io.debezium.jdbc.TemporalPrecisionMode;
+import io.debezium.util.Testing;
 
 /**
  * Integration test to verify postgres money types defined in public schema.
@@ -105,21 +104,8 @@ public class PostgresTemporalPrecisionHandlingIT extends AbstractAsyncEngineConn
     }
 
     @Test
-    @FixFor("DBZ-997")
-    public void shouldprocessIsoString() throws Exception {
-
-        // 2024-11-21 15:18:42,841 ERROR Postgres|test_server|0|streaming|postgres
-        //
-        // Failed to properly convert data value for 'isostring.test_data_types.c_time_whtz' of type time
-        // [io.debezium.relational.TableSchemaBuilder]
-        // org.apache.kafka.connect.errors.DataException:
-        // Invalid Java object for schema "io.debezium.time.IsoTime" with type STRING: class java.util.Date for field: "c_time_whtz"
-        // at org.apache.kafka.connect.data.ConnectSchema.validateValue(ConnectSchema.java:246)
-        // at org.apache.kafka.connect.data.ConnectSchema.validateValue(ConnectSchema.java:217)
-        // at org.apache.kafka.connect.data.Struct.put(Struct.java:216)
-        // at io.debezium.relational.TableSchemaBuilder.lambda$createValueGenerator$5(TableSchemaBuilder.java:328)
-        // at io.debezium.relational.TableSchema.valueFromColumnData(TableSchema.java:141)
-
+    @FixFor("DBZ-6387")
+    public void shouldConvertTemporalsToIsoString() throws Exception {
         Testing.Print.disable();
         start(PostgresConnector.class, config.getConfig());
         assertConnectorIsRunning();
@@ -133,8 +119,20 @@ public class PostgresTemporalPrecisionHandlingIT extends AbstractAsyncEngineConn
         SourceRecord insertRecord = records.recordsForTopic(TOPIC_NAME).get(0);
         assertEquals(TOPIC_NAME, insertRecord.topic());
         VerifyRecord.isValidInsert(insertRecord, "c_id", 1);
-        LOGGER.error("{}", insertRecord.key());
-        LOGGER.error("{}", getAfter(insertRecord));
+        Struct after = getAfter(insertRecord);
+        assertEquals(after.get("c_id"), 1);
+        assertEquals(after.get("c_date"), null);
+        assertEquals(after.get("c_timestamp0"), null);
+        assertEquals(after.get("c_timestamp1"), null);
+        assertEquals(after.get("c_timestamp2"), null);
+        assertEquals(after.get("c_timestamp3"), null);
+        assertEquals(after.get("c_timestamp4"), null);
+        assertEquals(after.get("c_timestamp5"), null);
+        assertEquals(after.get("c_timestamp6"), null);
+        assertEquals(after.get("c_timestamptz"), null);
+        assertEquals(after.get("c_time"), null);
+        assertEquals(after.get("c_time_whtz"), null);
+        assertEquals(after.get("c_interval"), null);
 
         TestHelper.execute(
                 """
@@ -146,8 +144,48 @@ public class PostgresTemporalPrecisionHandlingIT extends AbstractAsyncEngineConn
         insertRecord = records.recordsForTopic(TOPIC_NAME).get(0);
         assertEquals(TOPIC_NAME, insertRecord.topic());
         VerifyRecord.isValidInsert(insertRecord, "c_id", 2);
-        LOGGER.error("{}", insertRecord.key());
-        LOGGER.error("{}", getAfter(insertRecord));
+        after = getAfter(insertRecord);
+
+        assertEquals(after.get("c_id"), 2);
+        // '2017-09-15'::DATE
+        assertEquals(after.get("c_date"), "2017-09-15Z");
+        // '2019-07-09 02:28:57+01' ,
+        assertEquals(after.get("c_timestamp0"), "2019-07-09T02:28:57Z");
+        // '2019-07-09 02:28:57.1+01'
+        assertEquals(after.get("c_timestamp1"), "2019-07-09T02:28:57.1Z");
+        // '2019-07-09 02:28:57.12+01' ,
+        assertEquals(after.get("c_timestamp2"), "2019-07-09T02:28:57.12Z");
+        assertEquals(after.get("c_timestamp3"), "2019-07-09T02:28:57.123Z");
+        assertEquals(after.get("c_timestamp4"), "2019-07-09T02:28:57.1234Z");
+        assertEquals(after.get("c_timestamp5"), "2019-07-09T02:28:57.12345Z");
+        assertEquals(after.get("c_timestamp6"), "2019-07-09T02:28:57.123456Z");
+        // '2019-07-09 02:28:10.123456+01' > TEST Hour changes to UTC!
+        assertEquals(after.get("c_timestamptz"), "2019-07-09T01:28:10.123456Z");
+        // '04:05:11 PST' (-8) Test Hour changes to UTC
+        assertEquals(after.get("c_time"), "12:05:11Z");
+        // '04:05:11.789'
+        assertEquals(after.get("c_time_whtz"), "04:05:11.789Z");
+        // INTERVAL '1' YEAR
+        assertEquals(after.get("c_interval"), 31557600000000L);
+        TestHelper.execute(
+                """
+                        INSERT INTO isostring.test_data_types
+                        VALUES (3 , '{"jfield": 222}'::json , '{"jfield": 222}'::jsonb , '2017-02-10'::DATE , '2019-07-09 02:28:57.666666+01', '2019-07-09 02:28:57.666666+01', '2019-07-09 02:28:57.666666+01', '2019-07-09 02:28:57.666666+01', '2019-07-09 02:28:57.666666+01', '2019-07-09 02:28:57.666666+01', '2019-07-09 02:28:57.666666+01', '2019-07-09 02:28:20.666666+01', '04:10:22', '04:05:22.789', INTERVAL '10' DAY )
+                        ;""");
+
+        records = consumeRecordsByTopic(1);
+        insertRecord = records.recordsForTopic(TOPIC_NAME).get(0);
+        assertEquals(TOPIC_NAME, insertRecord.topic());
+        VerifyRecord.isValidInsert(insertRecord, "c_id", 3);
+        after = getAfter(insertRecord);
+        LOGGER.error("KEY:{}", insertRecord.key());
+        LOGGER.error("RECORD:{}", insertRecord);
+        LOGGER.error("AFTER:{}", after);
+        //
+        assertEquals(after.get("c_id"), 3);
+        //
+        // @TODO test infinite
+        //
         //
         // TestHelper.execute(
         // "ALTER TABLE changepk.test_table ADD COLUMN pk2 SERIAL;"
