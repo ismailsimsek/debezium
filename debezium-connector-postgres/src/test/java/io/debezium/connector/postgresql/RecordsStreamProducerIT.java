@@ -384,6 +384,12 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
         }
     }
 
+// @TODO FIX!
+//    org.apache.kafka.connect.errors.DataException: Invalid Java object for schema "io.debezium.time.IsoTime" with type STRING: class java.util.Date for field: "ctime"
+//    at org.apache.kafka.connect.data.ConnectSchema.validateValue(ConnectSchema.java:246)
+//    at org.apache.kafka.connect.data.ConnectSchema.validateValue(ConnectSchema.java:217)
+//    at org.apache.kafka.connect.data.Struct.put(Struct.java:216)
+//    at io.debezium.relational.TableSchemaBuilder.lambda$createValueGenerator$5(TableSchemaBuilder.java:332)
     @Test
     @FixFor("DBZ-6387")
     public void shouldProcessNotNullColumnsAdaptiveIsoStringTypes() throws Exception {

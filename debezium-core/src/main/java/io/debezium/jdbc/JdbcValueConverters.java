@@ -699,6 +699,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
 
     // @TODO add javadoc
     protected Object convertDateToUtcIsoString(Column column, Field fieldDefn, Object data) {
+        // @TODO is it normal to null value returns the default value? "1970-01-01Z"!? should it return empty string instead, or null?
         return convertValue(column, fieldDefn, data, "1970-01-01Z", (r) -> {
             try {
                 r.deliver(IsoDate.toIsoString(data, adjuster));
@@ -717,6 +718,7 @@ public class JdbcValueConverters implements ValueConverterProvider {
                 r.deliver(IsoTime.toIsoString(data, supportsLargeTimeValues()));
             }
             catch (IllegalArgumentException e) {
+                e.printStackTrace();
             }
         });
     }

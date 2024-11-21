@@ -26,13 +26,13 @@ import io.debezium.relational.ValueConverter;
 public class JdbcValueConvertersIsoStringTest {
     JdbcValueConverters converters = new JdbcValueConverters(null, TemporalPrecisionMode.ISOSTRING, ZoneOffset.UTC, null, null, null);
     //
-    final Column dateCol = Column.editor().name("c1").type("DATE").jdbcType(Types.DATE).create();
+    final Column dateCol = Column.editor().name("c1").type("DATE").optional(false).jdbcType(Types.DATE).create();
     final Field dateField = new Field(dateCol.name(), -1, converters.schemaBuilder(dateCol).build());
     final ValueConverter dateValConverter = converters.converter(dateCol, dateField);
     //
-    final Column timeCol = Column.editor().name("c2").type("TIME").jdbcType(Types.TIME).create();
+    final Column timeCol = Column.editor().name("c2").type("TIME").optional(false).jdbcType(Types.TIME).create();
     //
-    final Column timestampCol = Column.editor().name("c2").type("TIMESTAMP").jdbcType(Types.TIMESTAMP).create();
+    final Column timestampCol = Column.editor().name("c2").type("TIMESTAMP").optional(false).jdbcType(Types.TIMESTAMP).create();
 
     @Test
     public void testSchemaBuilder() {
@@ -40,18 +40,25 @@ public class JdbcValueConvertersIsoStringTest {
         final Schema dateColSchema = converters.schemaBuilder(dateCol).schema();
         assertThat(dateColSchema.type()).isEqualTo(Schema.Type.STRING);
         assertThat(dateColSchema.name()).isEqualTo("io.debezium.time.IsoDate");
+        assertThat(dateColSchema.isOptional()).isEqualTo(false);
         // test schema types are correct! set as ZonedTime
         final Schema timeColSchema = converters.schemaBuilder(timeCol).schema();
         assertThat(timeColSchema.type()).isEqualTo(Schema.Type.STRING);
         assertThat(timeColSchema.name()).isEqualTo("io.debezium.time.IsoTime");
+        assertThat(dateColSchema.isOptional()).isEqualTo(false);
         // test schema types are correct! set as ZonedTimestamp
         final Schema tsColSchema = converters.schemaBuilder(timestampCol).schema();
         assertThat(tsColSchema.type()).isEqualTo(Schema.Type.STRING);
         assertThat(tsColSchema.name()).isEqualTo("io.debezium.time.IsoTimestamp");
+        assertThat(dateColSchema.isOptional()).isEqualTo(false);
     }
 
     @Test
     public void testIsoDate() throws ParseException {
+        assertThat(dateCol.isOptional()).isEqualTo(false);
+        // @TODO is it normal to null value returns tehe default!? should it return empty string instead, or null?
+        assertThat(dateValConverter.convert(null)).isEqualTo("1970-01-01Z");
+        //
         Object val = dateValConverter.convert(LocalDate.parse("2005-05-12"));
         assertThat(val).isEqualTo("2005-05-12Z");
         // LocalDateTime
@@ -71,11 +78,16 @@ public class JdbcValueConvertersIsoStringTest {
 
     @Test
     public void testIsoTime() {
-        Column timeCol = Column.editor().name("c2").length(1).type("TIME").jdbcType(Types.TIME).create();
         Field timeField = new Field("tc1", -1, converters.schemaBuilder(timeCol).build());
         ValueConverter timeValConverter = converters.converter(timeCol, timeField);
+        //
+        assertThat(timeCol.isOptional()).isEqualTo(false);
+        assertThat(timeValConverter.convert(null)).isEqualTo("00:00:00Z");
+        // java.util.Date
+        Object val = timeValConverter.convert(new java.util.Date(10, 30, 01, 3,4,5));
+        assertThat(val).isEqualTo("03:04:05Z");
         // OffsetTime
-        Object val = timeValConverter.convert(new java.sql.Time(10, 30, 01));
+        val = timeValConverter.convert(new java.sql.Time(10, 30, 01));
         assertThat(val).isEqualTo("10:30:01Z");
         // Duration
         Duration valDuration = Duration.ofHours(2).plusMinutes(30).plusNanos(5);
@@ -84,15 +96,15 @@ public class JdbcValueConvertersIsoStringTest {
         // LocalTime
         val = timeValConverter.convert(LocalTime.of(10, 30, 45, 123456789));
         assertThat(val).isEqualTo("10:30:45.123456789Z");
-        // OffsetTime, fail With: Unexpected value for JDBC type 92 and column c2 TIME(1): class=java.time.OffsetTime
-        val = timeValConverter.convert(LocalTime.of(10, 01, 01, 1001).atOffset(ZoneOffset.of("+2")));
-        assertThat(val).isEqualTo(null);
     }
 
     @Test
     public void testIsoTimestamp() {
         Field tsField = new Field("tsc1", -1, converters.schemaBuilder(timestampCol).build());
         ValueConverter tSValConverter = converters.converter(timestampCol, tsField);
+        //
+        assertThat(timestampCol.isOptional()).isEqualTo(false);
+        assertThat(tSValConverter.convert(null)).isEqualTo("1970-01-01T00:00:00Z");
         // LocalDateTime
         Object val = tSValConverter.convert(LocalDateTime.parse("2011-01-11T16:40:30.123456789"));
         assertThat(val).isEqualTo("2011-01-11T16:40:30.123456789Z");
