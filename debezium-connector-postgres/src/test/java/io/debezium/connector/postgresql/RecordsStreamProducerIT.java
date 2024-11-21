@@ -385,9 +385,9 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
     }
 
     @Test
-    @FixFor("DBZ-1141")
-    public void shouldProcessNotNullColumnsAdaptiveDateTypes() throws Exception {
-        final Struct before = testProcessNotNullColumns(TemporalPrecisionMode.ADAPTIVE);
+    @FixFor("DBZ-6387")
+    public void shouldProcessNotNullColumnsAdaptiveIsoStringTypes() throws Exception {
+        final Struct before = testProcessNotNullColumns(TemporalPrecisionMode.ISOSTRING);
         if (before != null) {
             assertThat(before.get("created_at")).isEqualTo("1970-01-01T00:00:00Z");
             assertThat(before.get("created_at_tz")).isEqualTo("1970-01-01T00:00:00Z");
@@ -401,8 +401,8 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
 
     @Test
     @FixFor("DBZ-1141")
-    public void shouldProcessNotNullColumnsAdaptiveMsDateTypes() throws Exception {
-        final Struct before = testProcessNotNullColumns(TemporalPrecisionMode.ADAPTIVE_TIME_MICROSECONDS);
+    public void shouldProcessNotNullColumnsAdaptiveDateTypes() throws Exception {
+        final Struct before = testProcessNotNullColumns(TemporalPrecisionMode.ADAPTIVE);
         if (before != null) {
             assertThat(before.get("created_at")).isEqualTo(0L);
             assertThat(before.get("created_at_tz")).isEqualTo("1970-01-01T00:00:00Z");
@@ -415,9 +415,9 @@ public class RecordsStreamProducerIT extends AbstractRecordsProducerTest {
     }
 
     @Test
-    @FixFor("DBZ-6387")
-    public void shouldProcessNotNullColumnsAdaptiveIsoTemporalTypes() throws Exception {
-        final Struct before = testProcessNotNullColumns(TemporalPrecisionMode.ISOSTRING);
+    @FixFor("DBZ-1141")
+    public void shouldProcessNotNullColumnsAdaptiveMsDateTypes() throws Exception {
+        final Struct before = testProcessNotNullColumns(TemporalPrecisionMode.ADAPTIVE_TIME_MICROSECONDS);
         if (before != null) {
             assertThat(before.get("created_at")).isEqualTo(0L);
             assertThat(before.get("created_at_tz")).isEqualTo("1970-01-01T00:00:00Z");
